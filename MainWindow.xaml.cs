@@ -1355,6 +1355,7 @@ public partial class MainWindow : Window
             scroll.KeyFrames.Add(new DiscreteDoubleKeyFrame(LyricEdge, KeyTime.FromTimeSpan(TimeSpan.FromSeconds(hold))));
             scroll.KeyFrames.Add(new EasingDoubleKeyFrame(LyricEdge - overflow, KeyTime.FromTimeSpan(TimeSpan.FromSeconds(hold + run)),
                 new SineEase { EasingMode = EasingMode.EaseInOut }));
+            scroll.Completed += (_, _) => LyricBox.InvalidateVisual();
         }
         enter.X = overflow > 0 ? LyricEdge : (box - width) / 2;
         enter.BeginAnimation(TranslateTransform.XProperty, scroll);
@@ -1368,7 +1369,11 @@ public partial class MainWindow : Window
             if (ReferenceEquals(next.Effect, blurIn)) next.Effect = null;
         };
         blurIn.BeginAnimation(BlurEffect.RadiusProperty, sharpen);
-        enter.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(10, 0, Ms(380)) { EasingFunction = ease });
+        // the see-through window does not always repaint all of a line in its last fractions of a pixel, so a piece of it
+        // can stay where it was a frame before, a hair lower: once the line is in place, the whole box is drawn afresh
+        var arrive = new DoubleAnimation(10, 0, Ms(380)) { EasingFunction = ease };
+        arrive.Completed += (_, _) => LyricBox.InvalidateVisual();
+        enter.BeginAnimation(TranslateTransform.YProperty, arrive);
         next.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, Ms(300)));
     }
 
