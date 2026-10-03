@@ -113,6 +113,10 @@ public partial class MainWindow : Window
     readonly Shelf _shelf;
     readonly Dictionary<Shelf.Item, ShelfTile> _tiles = new();
     readonly BlurEffect _motion = new() { Radius = 0, RenderingBias = RenderingBias.Performance }; // over the content while the island changes shape
+    // the see-through window redraws whatever the bars next to the lyric line touch, and each time it draws the text
+    // anew it lands a fraction of a pixel elsewhere: the line crept up and fell back, its last letters a hair lower.
+    // Drawn once into a bitmap that sits on whole pixels, it stays put
+    readonly BitmapCache _lyricCache = new() { SnapsToDevicePixels = true };
     readonly Alarm _alarm = new();
     readonly Stopwatch _time = Stopwatch.StartNew();
     readonly DispatcherTimer _tick, _transientTimer, _collapseTimer, _awayTimer, _pushTimer, _dropTimer;
@@ -208,6 +212,7 @@ public partial class MainWindow : Window
         IdleView.Opacity = 1;
 
         Host.Clip = _clip;
+        LyricBox.CacheMode = _lyricCache;
         EqSmall.Fill = EqToast.Fill = EqBig.Fill = _accent;
 
         _timerTint = new SolidColorBrush(((SolidColorBrush)FindResource("Orange")).Color);
@@ -320,6 +325,13 @@ public partial class MainWindow : Window
 
         _shellMessage = (int)Native.RegisterWindowMessage("SHELLHOOK");
         if (Native.RegisterShellHookWindow(_hwnd)) HwndSource.FromHwnd(_hwnd).AddHook(OnShellMessage);
+    }
+
+    protected override void OnDpiChanged(DpiScale oldDpi, DpiScale newDpi)
+    {
+        base.OnDpiChanged(oldDpi, newDpi);
+        // the lyric line's bitmap goes with the screen's pixels
+        ApplyShape();
     }
 
     // the volume and track keys pass through the shell on their way to the system: the volume itself is polled,
@@ -597,6 +609,9 @@ public partial class MainWindow : Window
         double size = Math.Max(_size.Value, 0.01);
         RootSize.ScaleX = RootSize.ScaleY = size;
         RootMove.Y = _offset.Value + _gap.Value / size;
+        // the lyric line's bitmap is drawn at the size it is shown, pixel for pixel, or it would be blurred
+        double sharp = size * scale * VisualTreeHelper.GetDpi(this).DpiScaleY;
+        if (Math.Abs(_lyricCache.RenderAtScale - sharp) > 0.001) _lyricCache.RenderAtScale = sharp;
 
         // the bubble rides the pill's right end: inside it, then out past the gap, its content fading in as it comes free.
         // It follows that end as the pill swells under the pointer, but keeps its own size. It is as wide as what it
@@ -1355,7 +1370,6 @@ public partial class MainWindow : Window
             scroll.KeyFrames.Add(new DiscreteDoubleKeyFrame(LyricEdge, KeyTime.FromTimeSpan(TimeSpan.FromSeconds(hold))));
             scroll.KeyFrames.Add(new EasingDoubleKeyFrame(LyricEdge - overflow, KeyTime.FromTimeSpan(TimeSpan.FromSeconds(hold + run)),
                 new SineEase { EasingMode = EasingMode.EaseInOut }));
-            scroll.Completed += (_, _) => LyricBox.InvalidateVisual();
         }
         enter.X = overflow > 0 ? LyricEdge : (box - width) / 2;
         enter.BeginAnimation(TranslateTransform.XProperty, scroll);
@@ -1369,11 +1383,7 @@ public partial class MainWindow : Window
             if (ReferenceEquals(next.Effect, blurIn)) next.Effect = null;
         };
         blurIn.BeginAnimation(BlurEffect.RadiusProperty, sharpen);
-        // the see-through window does not always repaint all of a line in its last fractions of a pixel, so a piece of it
-        // can stay where it was a frame before, a hair lower: once the line is in place, the whole box is drawn afresh
-        var arrive = new DoubleAnimation(10, 0, Ms(380)) { EasingFunction = ease };
-        arrive.Completed += (_, _) => LyricBox.InvalidateVisual();
-        enter.BeginAnimation(TranslateTransform.YProperty, arrive);
+        enter.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(10, 0, Ms(380)) { EasingFunction = ease });
         next.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, Ms(300)));
     }
 
