@@ -323,7 +323,11 @@ public partial class MainWindow : Window
 
         _media = new MediaService(Dispatcher);
         _media.Changed += OnMediaChanged;
-        _lyrics.Changed += () => UpdateLyric();
+        _lyrics.Changed += () =>
+        {
+            _media.Assume(_lyrics.Length);
+            UpdateLyric();
+        };
         _network = new NetworkService(Dispatcher);
         _network.Changed += OnNetworkChanged;
         _updater.Changed += UpdateUpdate;
@@ -1541,7 +1545,7 @@ public partial class MainWindow : Window
 
     void OnMediaChanged()
     {
-        string title = _media.HasTrack ? _media.Title : "";
+        string title = _media.HasTrack ? _media.Name : "";
         bool newTrack = title.Length > 0 && title != _lastTitle;
         _lastTitle = title;
 
@@ -1660,7 +1664,7 @@ public partial class MainWindow : Window
         int index = lines.Length - 1;
         while (index >= 0 && lines[index].Time > at) index--;
 
-        string title = _media.HasTrack ? _media.Title : "";
+        string title = _media.HasTrack ? _media.Name : "";
         string text = index < 0 ? "" : lines[index].Text;
         TimeSpan end = index + 1 < lines.Length ? lines[index + 1].Time : _media.Duration;
         double seconds = (end - at).TotalSeconds;
@@ -1977,7 +1981,8 @@ public partial class MainWindow : Window
 
         TimeSpan duration = _media.Duration;
         bool known = duration.TotalSeconds >= 1;
-        double played = known ? Math.Clamp(_media.Position / duration, 0, 1) : 0;
+        bool counted = known || _media.Counted; // the island's own count may run with no end to it
+        double played = _media.Played;
         // after a drop the player takes a moment to report the new position: don't flick back meanwhile
         if (!_scrubbing && now < _scrubUntil && Math.Abs(played - _scrub) < 0.02) _scrubUntil = 0;
         double shown = _scrubbing || now < _scrubUntil ? _scrub : played;
@@ -1997,11 +2002,11 @@ public partial class MainWindow : Window
         RollPlayerLyric(now, dt);
 
         // while scrubbing the labels read the spot under the pointer
-        TimeSpan at = duration * shown;
-        var label = known ? ((int)at.TotalSeconds, (int)duration.TotalSeconds) : (-1, -1);
+        TimeSpan at = known ? duration * shown : _media.Position;
+        var label = counted ? ((int)at.TotalSeconds, known ? (int)duration.TotalSeconds : -1) : (-1, -1);
         if (label == _seekLabel) return;
         _seekLabel = label;
-        PosText.Text = known ? Format(at) : "–:––";
+        PosText.Text = counted ? Format(at) : "–:––";
         RemText.Text = known ? "-" + Format(duration - at) : "–:––";
     }
 
@@ -2036,7 +2041,7 @@ public partial class MainWindow : Window
     void Seek_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         e.Handled = true;
-        if (SeekArea.ActualWidth <= 0 || _media.Duration.TotalSeconds < 1) return;
+        if (SeekArea.ActualWidth <= 0 || !_media.Seekable) return;
 
         _scrubbing = true;
         _scrub = SeekFraction(e);

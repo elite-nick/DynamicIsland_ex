@@ -89,11 +89,16 @@ sealed class LyricsService
         return _stretched;
     }
 
+    /// <summary>How long the song usually is, for a player that does not tell; zero when not found, or the take is a reworked one.</summary>
+    public TimeSpan Length => _reworked ? TimeSpan.Zero : TimeSpan.FromSeconds(Usual()?.Duration ?? 0);
+
+    // the usual version is the length most entries agree on
+    Candidate? Usual() => _candidates.Where(c => c.Duration >= 30 && c.End <= c.Duration + 1)
+        .GroupBy(c => Math.Round(c.Duration)).OrderByDescending(g => g.Count()).FirstOrDefault()?.First();
+
     Line[] Stretch(double seconds)
     {
-        // the usual version is the length most entries agree on
-        Candidate? usual = _candidates.Where(c => c.Duration >= 30 && c.End <= c.Duration + 1)
-            .GroupBy(c => Math.Round(c.Duration)).OrderByDescending(g => g.Count()).FirstOrDefault()?.First();
+        Candidate? usual = Usual();
         if (usual == null) return None;
 
         double ratio = seconds / usual.Duration;

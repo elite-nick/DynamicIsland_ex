@@ -25,18 +25,44 @@ sealed class MediaService
     DateTime _positionAt = DateTime.UtcNow;
     DateTimeOffset _timelineStamp;
     double _rate = 1;
+    Status _status;
+
+    // Telegram never fills the timeline in, and gives a file with no tags no title either: of such a session
+    // the island reads what the app's own player bar says
+    const int Paced = 10; // hundredths of the track the bar's slider has to be past before the length is told from it
+    readonly PlayerBar _bar = new();
+    bool _bare;                         // the session gives no timeline
+    bool _looked;                       // ...its app's bar has been looked for
+    bool _read;                         // ...and is there to read
+    string _title = "", _artist = "";   // as the session gives them
+    string _barText = "", _barTitle = "", _barArtist = "";
+    TimeSpan _barAt = TimeSpan.MinValue; // the time the bar's label shows
+    int _barPercent = -1;               // how far its slider is, in hundredths
+    TimeSpan _measured;                 // the track's length by where the slider is at a known time
+    TimeSpan _assumed;                  // ...and, until that is known, as the song is known to be elsewhere
 
     public MediaService(Dispatcher ui) => _ui = ui;
 
-    public string Title { get; private set; } = "";
-    public string Artist { get; private set; } = "";
+    public string Title => _title.Length > 0 ? _title : _barTitle;
+    public string Artist => _title.Length > 0 ? _artist : _barArtist;
+    /// <summary>What to call the track: its title, or the app that plays it when it has none.</summary>
+    public string Name => Title.Length > 0 ? Title : SourceApp.Name(Source) is { Length: > 0 } app ? app : "Без названия";
     public ImageSource? Art { get; private set; }
     /// <summary>Colours of the cover; the first stands for the whole of it.</summary>
     public Color[] Palette { get; private set; } = Plain;
     public Color Accent => Palette[0];
     public bool IsPlaying { get; private set; }
-    public bool HasTrack => _session != null && Title.Length > 0;
+    // what plays under no title at all is a track all the same; one with no timeline may yet be named by its app's bar
+    public bool HasTrack => _session != null
+        && (Title.Length > 0 || (_bare && _looked && _status is Status.Playing or Status.Paused));
     public TimeSpan Duration => _duration;
+    /// <summary>The position is read off the app's own player, as the session gives none.</summary>
+    public bool Counted => _bare && _read;
+    /// <summary>The track can be played from another place: its length is known, or its app's own slider is there to move.</summary>
+    public bool Seekable => _bare ? _read : _duration.TotalSeconds >= 1;
+    /// <summary>How far the track is, from 0 to 1: by its times, or by the app's own slider while its length is not known.</summary>
+    public double Played => _duration.TotalSeconds >= 1 ? Math.Clamp(Position / _duration, 0, 1)
+        : Counted && _barPercent > 0 ? _barPercent / 100.0 : 0;
 
     /// <summary>Id of the app that plays, as the session gives it; empty when there is none.</summary>
     public string Source
@@ -52,15 +78,25 @@ sealed class MediaService
     {
         get
         {
-            TimeSpan p = _position;
-            if (IsPlaying) p += (DateTime.UtcNow - _positionAt) * _rate;
-            if (p < TimeSpan.Zero) return TimeSpan.Zero;
-            return p > _duration ? _duration : p;
+            TimeSpan p = Run;
+            if (p < TimeSpan.Zero || (_bare && !_read)) return TimeSpan.Zero;
+            // read off the bar, the track has no end until its length is found
+            bool open = _bare && _duration <= TimeSpan.Zero;
+            return p > _duration && !open ? _duration : p;
         }
     }
 
+    TimeSpan Run => IsPlaying ? _position + (DateTime.UtcNow - _positionAt) * _rate : _position;
+
     /// <summary>Raised on the UI thread.</summary>
     public event Action? Changed;
+
+    /// <summary>The length of the song as it is known elsewhere: it stands in for the one the app does not give.</summary>
+    public void Assume(TimeSpan length)
+    {
+        _assumed = length;
+        if (_bare) Settle();
+    }
 
     public async Task StartAsync()
     {
@@ -72,6 +108,7 @@ sealed class MediaService
         });
         _manager.SessionsChanged += (_, _) => _ui.InvokeAsync(Attach);
         Attach();
+        Watch();
     }
 
     /// <summary>Turns to the next app with a media session, or the previous one; they go round in a circle.</summary>
@@ -132,8 +169,14 @@ sealed class MediaService
             catch { }
         }
 
+        Session? old = _session;
         _session = Pick();
         _timelineStamp = default;
+        if (!Same(old, _session))
+        {
+            _bare = _looked = false;
+            Unread();
+        }
 
         if (_session != null)
         {
@@ -196,7 +239,7 @@ sealed class MediaService
 
         if (session == null)
         {
-            Title = Artist = "";
+            _title = _artist = "";
             Art = null;
             Palette = Plain;
             IsPlaying = false;
@@ -210,7 +253,7 @@ sealed class MediaService
             if (version != _version) return;
 
             string title = props.Title ?? "";
-            bool sameTrack = title == Title;
+            bool sameTrack = title == _title;
             ImageSource? art = null;
             Color[] palette = Plain;
 
@@ -230,8 +273,8 @@ sealed class MediaService
                 if (version != _version) return;
             }
 
-            Title = title;
-            Artist = props.Artist ?? "";
+            _title = title;
+            _artist = props.Artist ?? "";
             // browsers briefly drop the thumbnail while updating metadata — keep the old one
             if (art != null || !sameTrack)
             {
@@ -255,13 +298,21 @@ sealed class MediaService
         try
         {
             var info = _session.GetPlaybackInfo();
-            bool playing = info.PlaybackStatus == Status.Playing;
+            Status status = info.PlaybackStatus;
+            bool playing = status == Status.Playing;
             if (playing != IsPlaying)
             {
                 // freeze / resume our own clock: not every app pushes a timeline update here
                 _position = Position;
                 _positionAt = DateTime.UtcNow;
                 IsPlaying = playing;
+            }
+            if (status != _status)
+            {
+                _status = status;
+                // stopped, the app's player is closed and its bar gone; played again, the bar is back
+                if (status is Status.Playing or Status.Paused) _bar.Forget();
+                else Unread();
             }
             _rate = info.PlaybackRate ?? 1;
         }
@@ -274,6 +325,13 @@ sealed class MediaService
         try
         {
             var t = _session.GetTimelineProperties();
+            _bare = t.LastUpdatedTime.Year < 2000 && t.EndTime <= t.StartTime;
+            if (_bare)
+            {
+                Settle();
+                return;
+            }
+
             _duration = t.EndTime - t.StartTime;
             if (t.LastUpdatedTime == _timelineStamp) return;
 
@@ -283,6 +341,97 @@ sealed class MediaService
             _positionAt = at.Year < 2000 ? DateTime.UtcNow : at;
         }
         catch { }
+    }
+
+    // a session with no timeline is followed by its app's player bar for as long as it plays or is paused
+    async void Watch()
+    {
+        while (true)
+        {
+            await Task.Delay(IsPlaying ? 250 : 1000);
+            Session? session = _session;
+            if (session == null || !_bare || _status is not (Status.Playing or Status.Paused)) continue;
+            try
+            {
+                string app = Source;
+                if (!PlayerBar.Has(app)) continue;
+                // off the UI thread: the answer is the app's to give, and it may be busy
+                PlayerBar.Reading? reading = await Task.Run(() => _bar.Read(app));
+                if (ReferenceEquals(session, _session) && _bare && _status is Status.Playing or Status.Paused) Take(reading);
+            }
+            catch (Exception ex)
+            {
+                App.Log(ex);
+            }
+        }
+    }
+
+    void Take(PlayerBar.Reading? reading)
+    {
+        bool track = HasTrack;
+        (string title, TimeSpan length) = (Title, _duration);
+        _looked = true;
+
+        if (reading is { } bar)
+        {
+            _read = true;
+            if (bar.Text != _barText)
+            {
+                Unread();
+                _read = true;
+                _barText = bar.Text;
+                int dash = bar.Text.IndexOf(" – ", StringComparison.Ordinal);
+                (_barArtist, _barTitle) = dash > 0 ? (bar.Text[..dash], bar.Text[(dash + 3)..]) : ("", bar.Text);
+            }
+            // the label goes by whole seconds: the moment it turns is the moment the second begins
+            if (bar.At != _barAt)
+            {
+                _barAt = _position = bar.At;
+                _positionAt = DateTime.UtcNow;
+            }
+            Pace(bar.Percent);
+        }
+        else if (_read)
+        {
+            Unread();
+        }
+
+        Settle();
+        if (HasTrack != track || Title != title || _duration != length) Changed?.Invoke();
+    }
+
+    // the slider tells how far the track is in whole hundredths: the time at which it turns to the next gives the length
+    void Pace(int percent)
+    {
+        if (percent == _barPercent) return;
+
+        bool step = IsPlaying && percent == _barPercent + 1;
+        _barPercent = percent;
+        // dragged to another place, it does not tell where in the hundredth the track is
+        if (!step || percent < Paced) return;
+
+        // it shows the nearest hundredth, so it turns half of one before each
+        double length = Run.TotalSeconds * 100 / (percent - 0.5);
+        // the further in, the closer the answer: an earlier one stands until a later one is out of its reach
+        if (_measured == TimeSpan.Zero || Math.Abs(length - _measured.TotalSeconds) > 50.0 / percent)
+            _measured = TimeSpan.FromSeconds(Math.Round(length));
+    }
+
+    void Settle()
+    {
+        // the song as it is known elsewhere may be another cut of it: the slider has to agree
+        if (_assumed > TimeSpan.Zero && _barPercent >= 0
+            && Math.Abs(Run / _assumed * 100 - _barPercent) > 1.5 + 150 / _assumed.TotalSeconds) _assumed = TimeSpan.Zero;
+        _duration = !_read ? TimeSpan.Zero : _measured > TimeSpan.Zero ? _measured : _assumed;
+    }
+
+    void Unread()
+    {
+        _read = false;
+        _barText = _barTitle = _barArtist = "";
+        _barAt = TimeSpan.MinValue;
+        _barPercent = -1;
+        _measured = _assumed = TimeSpan.Zero;
     }
 
     public async void TogglePlay()
@@ -306,7 +455,19 @@ sealed class MediaService
     public async void Seek(double fraction)
     {
         Session? session = _session;
-        if (session == null || _duration <= TimeSpan.Zero) return;
+        if (session == null) return;
+        if (_bare)
+        {
+            if (!_read || !await Task.Run(() => _bar.Seek(fraction)) || !ReferenceEquals(session, _session)) return;
+            // where it landed is read off the bar; until then, where it was sent
+            _position = _duration * Math.Clamp(fraction, 0, 1);
+            _positionAt = DateTime.UtcNow;
+            _barAt = TimeSpan.MinValue;
+            _barPercent = -1;
+            Changed?.Invoke();
+            return;
+        }
+        if (_duration <= TimeSpan.Zero) return;
         try
         {
             var target = TimeSpan.FromTicks((long)(_duration.Ticks * Math.Clamp(fraction, 0, 1)));

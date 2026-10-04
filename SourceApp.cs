@@ -76,6 +76,13 @@ static class SourceApp
     /// <summary>What the app is called in the Start menu, or its exe without the ending; empty when the id says neither.</summary>
     public static string Name(string appId)
     {
+        // asked on every change of what plays, for the same app
+        if (appId != _nameOf) (_nameOf, _name) = (appId, Named(appId));
+        return _name;
+    }
+
+    static string Named(string appId)
+    {
         if (appId.Length == 0) return "";
         try
         {
@@ -89,15 +96,37 @@ static class SourceApp
         return appId.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ? Path.GetFileNameWithoutExtension(appId) : "";
     }
 
+    static string _nameOf = "", _name = "";
     static string _targetOf = "", _target = "";
+    static readonly object Gate = new();
 
     /// <summary>Whether a process is one of the app's: a player or a browser sounds through more than the one that has its window.</summary>
     public static bool Owns(string appId, uint process)
     {
         if (appId.Length == 0) return false;
         // asked on every notch of the wheel, for the same app
-        if (appId != _targetOf) (_targetOf, _target) = (appId, Target(appId));
-        return Runs(process, appId, _target);
+        string target;
+        lock (Gate) // the player bar asks from a thread of its own
+        {
+            if (appId != _targetOf) (_targetOf, _target) = (appId, Target(appId));
+            target = _target;
+        }
+        return Runs(process, appId, target);
+    }
+
+    /// <summary>The app's top-level windows, on show or not.</summary>
+    public static List<IntPtr> Windows(string appId)
+    {
+        var found = new List<IntPtr>();
+        if (appId.Length == 0) return found;
+        EnumWindows((hwnd, _) =>
+        {
+            if (GetWindow(hwnd, GW_OWNER) != IntPtr.Zero) return true;
+            GetWindowThreadProcessId(hwnd, out uint process);
+            if (Owns(appId, process)) found.Add(hwnd);
+            return true;
+        }, IntPtr.Zero);
+        return found;
     }
 
     /// <summary>The exe that the Start menu entry with this id starts; empty when there is no such entry.</summary>

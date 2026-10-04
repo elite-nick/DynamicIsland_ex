@@ -476,7 +476,7 @@
                             <ColumnDefinition/>
                             <ColumnDefinition Width="40"/>
                         </Grid.ColumnDefinitions>
-                        <local:Digits x:Name="PosText" Text="0:00" FontSize="11" Foreground="{StaticResource Dim}" VerticalAlignment="Center"/>
+                        <local:Digits x:Name="PosText" Text="–:––" FontSize="11" Foreground="{StaticResource Dim}" VerticalAlignment="Center"/>
                         <Border x:Name="SeekArea" Grid.Column="1" Background="Transparent" Cursor="Hand"
                                 MouseLeftButtonDown="Seek_MouseLeftButtonDown" MouseMove="Seek_MouseMove"
                                 MouseLeftButtonUp="Seek_MouseLeftButtonUp" LostMouseCapture="Seek_LostMouseCapture">
@@ -485,7 +485,7 @@
                                 <Border x:Name="SeekFill" CornerRadius="3" Background="White" HorizontalAlignment="Left" Width="0"/>
                             </Grid>
                         </Border>
-                        <local:Digits x:Name="RemText" Grid.Column="2" Text="-0:00" FontSize="11" Foreground="{StaticResource Dim}"
+                        <local:Digits x:Name="RemText" Grid.Column="2" Text="–:––" FontSize="11" Foreground="{StaticResource Dim}"
                                       HorizontalAlignment="Right" VerticalAlignment="Center"/>
                     </Grid>
 
