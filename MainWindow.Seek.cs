@@ -1,6 +1,8 @@
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
+using static DynamicIsland.Motion;
 
 namespace DynamicIsland;
 
@@ -18,6 +20,9 @@ public partial class MainWindow
     bool _scrubbing;
     double _scrubFraction, _scrubHeldUntil;
     (int At, int Total) _seekLabel = (NoSeconds, NoSeconds);
+    LyricsService.Line[] _seekLinesFrom = [];
+    TimeSpan _seekLinesSpan;
+    bool _seekLined;
 
     void StartSeekLoop()
     {
@@ -46,7 +51,8 @@ public partial class MainWindow
         double thick = Math.Max(_seekHeight.Value, MinSeekHeight);
         SeekBar.Height = thick;
         SeekBack.CornerRadius = SeekFill.CornerRadius = new CornerRadius(thick / 2);
-        SeekFill.Width = Math.Clamp(_seekFill.Value, 0, track);
+        SeekFill.Width = SeekLines.Fill = Math.Clamp(_seekFill.Value, 0, track);
+        MarkLineStarts(duration);
         FillSungLine();
         AdvancePlayerLyrics(now, dt);
 
@@ -60,10 +66,38 @@ public partial class MainWindow
         return true;
     }
 
+    void MarkLineStarts(TimeSpan duration)
+    {
+        if (ReferenceEquals(_playerLines, _seekLinesFrom) && duration == _seekLinesSpan) return;
+
+        _seekLinesFrom = _playerLines;
+        _seekLinesSpan = duration;
+        double seconds = duration.TotalSeconds;
+        SeekLines.SetStarts(seconds < 1 ? [] : _playerLines.Select(line => line.Time.TotalSeconds / seconds).ToArray());
+        SyncSeekStyle(true);
+    }
+
+    void SyncSeekStyle(bool animate)
+    {
+        bool lined = Settings.LineBar && SeekLines.HasMarks;
+        if (lined == _seekLined) return;
+
+        _seekLined = lined;
+        Duration time = Ms(animate ? 260 : 0);
+        SeekLines.BeginAnimation(OpacityProperty, new DoubleAnimation(lined ? 1 : 0, time));
+        foreach (UIElement plain in new UIElement[] { SeekBack, SeekFill })
+            plain.BeginAnimation(OpacityProperty, new DoubleAnimation(lined ? 0 : 1, time));
+    }
+
     static string FormatTime(TimeSpan t) =>
         t.TotalHours >= 1 ? t.ToString(@"h\:mm\:ss") : t.ToString(@"m\:ss");
 
-    double SeekFraction(MouseEventArgs e) => Math.Clamp(e.GetPosition(SeekArea).X / SeekArea.ActualWidth, 0, 1);
+    double SeekFraction(MouseEventArgs e)
+    {
+        double x = e.GetPosition(SeekArea).X;
+        if (_seekLined) x = SeekLines.Snap(x);
+        return Math.Clamp(x / SeekArea.ActualWidth, 0, 1);
+    }
 
     void Seek_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {

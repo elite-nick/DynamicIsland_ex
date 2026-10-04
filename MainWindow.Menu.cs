@@ -182,6 +182,13 @@ public partial class MainWindow
         RefreshLookPage();
     }
 
+    void SeekStyle_Click(object sender, RoutedEventArgs e)
+    {
+        Settings.LineBar = !Settings.LineBar;
+        RefreshLookPage();
+        SyncSeekStyle(true);
+    }
+
     void Accent_Click(object sender, RoutedEventArgs e)
     {
         Settings.Accent = ((RadioButton)sender).Background is SolidColorBrush picked ? picked.Color : null;
@@ -195,6 +202,7 @@ public partial class MainWindow
         SizeText.Text = Settings.Scale + "%";
         GapText.Text = Settings.Gap + " px";
         DotsText.Text = Settings.Dots ? "Матрица" : "Полоски";
+        SeekStyleText.Text = Settings.LineBar ? "По строкам" : "Сплошная";
         foreach (RadioButton dot in AccentStrip.Children)
         {
             Color? color = dot.Background is SolidColorBrush own ? own.Color : null;

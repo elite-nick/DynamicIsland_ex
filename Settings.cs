@@ -13,6 +13,7 @@ static class Settings
     static bool _network = ReadSwitch(nameof(Network)), _hideFullscreen = ReadSwitch(nameof(HideFullscreen));
     static bool _rim = ReadSwitch(nameof(Rim)), _appVolume = ReadSwitch(nameof(AppVolume));
     static bool _dots = ReadSwitch(nameof(Dots), false);
+    static bool _lineBar = ReadSwitch(nameof(LineBar));
     static int _scale = Math.Clamp(Read(nameof(Scale), DefaultScale), MinScale, MaxScale);
     static int _gap = Math.Clamp(Read(nameof(Gap), DefaultGap), 0, MaxGap);
     static int _accent = Read(nameof(Accent), 0);
@@ -21,6 +22,12 @@ static class Settings
     {
         get => _dots;
         set => Write(nameof(Dots), _dots = value);
+    }
+
+    public static bool LineBar
+    {
+        get => _lineBar;
+        set => Write(nameof(LineBar), _lineBar = value);
     }
 
     public static bool Lyrics

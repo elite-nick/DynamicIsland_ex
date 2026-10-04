@@ -501,6 +501,7 @@
                             <Grid x:Name="SeekBar" Height="6" VerticalAlignment="Center">
                                 <Border x:Name="SeekBack" CornerRadius="3" Background="#33FFFFFF"/>
                                 <Border x:Name="SeekFill" CornerRadius="3" Background="White" HorizontalAlignment="Left" Width="0"/>
+                                <local:LineBar x:Name="SeekLines" Opacity="0"/>
                             </Grid>
                         </Border>
                         <local:Digits x:Name="RemText" Grid.Column="2" Text="–:––" FontSize="11" Foreground="{StaticResource Dim}"
@@ -780,7 +781,7 @@
                     </StackPanel>
                 </Grid>
 
-                <Grid x:Name="LookView" Width="320" Height="248" HorizontalAlignment="Center" VerticalAlignment="Top">
+                <Grid x:Name="LookView" Width="320" Height="288" HorizontalAlignment="Center" VerticalAlignment="Top">
                     <local:RowList Margin="10,8,10,0">
                         <Button Style="{StaticResource BackButton}" Content="ОФОРМЛЕНИЕ" Click="SettingsBack_Click"/>
                         <Button x:Name="SizeRow" Style="{StaticResource RowButton}" Click="Size_Click">
@@ -804,6 +805,14 @@
                                 <local:Icon Style="{StaticResource RowIcon}" Kind="Bars"/>
                                 <TextBlock Style="{StaticResource RowLabel}" Text="Эквалайзер"/>
                                 <TextBlock x:Name="DotsText" Foreground="{StaticResource Dim}"
+                                           HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                            </Grid>
+                        </Button>
+                        <Button Style="{StaticResource RowButton}" Click="SeekStyle_Click">
+                            <Grid>
+                                <local:Icon Style="{StaticResource RowIcon}" Kind="Segments"/>
+                                <TextBlock Style="{StaticResource RowLabel}" Text="Полоса трека"/>
+                                <TextBlock x:Name="SeekStyleText" Foreground="{StaticResource Dim}"
                                            HorizontalAlignment="Right" VerticalAlignment="Center"/>
                             </Grid>
                         </Button>
