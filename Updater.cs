@@ -16,6 +16,7 @@ sealed class Updater
 
     const string Latest = "https://api.github.com/repos/mihailkotovski/DynamicIsland/releases/latest";
     const string Asset = "DynamicIsland.exe";
+    const int MostNotes = 6;
     /// <summary>Tells the island it was started by the one it replaces, which may not have gone yet.</summary>
     public const string Restarted = "--updated";
 
@@ -36,8 +37,15 @@ sealed class Updater
     /// <summary>The release on GitHub, once it is known.</summary>
     public Version? Found { get; private set; }
 
+    /// <summary>What the release says is new in it, a line each; empty when it says nothing.</summary>
+    public string[] Notes { get; private set; } = [];
+
     /// <summary>How much of the new exe is here, 0..100.</summary>
     public int Percent { get; private set; }
+
+    /// <summary>Bytes of the new exe that are here, and all there are of them; 0 while that is not known.</summary>
+    public long Done { get; private set; }
+    public long Total { get; private set; }
 
     static string Exe => Environment.ProcessPath ?? "";
     static string Old => Exe + ".old";
@@ -56,12 +64,14 @@ sealed class Updater
             using var doc = JsonDocument.Parse(await Http.GetStringAsync(Latest, timeout.Token));
             JsonElement release = doc.RootElement;
             Found = Trim(Version.Parse(release.GetProperty("tag_name").GetString()!.TrimStart('v')));
+            Notes = release.TryGetProperty("body", out JsonElement body) ? Listed(body.GetString() ?? "") : [];
             _url = _digest = "";
             foreach (JsonElement asset in release.GetProperty("assets").EnumerateArray())
             {
                 if (asset.GetProperty("name").GetString() != Asset) continue;
                 _url = asset.GetProperty("browser_download_url").GetString() ?? "";
                 if (asset.TryGetProperty("digest", out JsonElement digest)) _digest = digest.GetString() ?? "";
+                if (asset.TryGetProperty("size", out JsonElement size)) Total = size.GetInt64();
             }
             _checked = DateTime.UtcNow;
             Set(Found > Current && _url.Length > 0 ? Stage.Available : Stage.Latest);
@@ -82,6 +92,7 @@ sealed class Updater
         if (State != Stage.Available) return false;
 
         Percent = 0;
+        Done = 0;
         Set(Stage.Loading);
         try
         {
@@ -105,6 +116,7 @@ sealed class Updater
         using HttpResponseMessage response = await Http.GetAsync(_url, HttpCompletionOption.ResponseHeadersRead);
         response.EnsureSuccessStatusCode();
         long total = response.Content.Headers.ContentLength ?? 0, done = 0;
+        if (total > 0) Total = total;
 
         using var sha = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
         await using (Stream from = await response.Content.ReadAsStreamAsync())
@@ -120,6 +132,7 @@ sealed class Updater
                 int percent = total > 0 ? (int)(done * 100 / total) : 0;
                 if (percent == Percent) continue;
                 Percent = percent;
+                Done = done;
                 Changed?.Invoke();
             }
         }
@@ -161,6 +174,15 @@ sealed class Updater
         State = stage;
         Changed?.Invoke();
     }
+
+    // the items of the list in the notes of a release; the link to the changes that GitHub puts there is not one
+    static string[] Listed(string notes) => notes.Split('\n')
+        .Select(line => line.Trim())
+        .Where(line => line.Length > 2 && line[0] is '-' or '*' or '•' && line[1] == ' ')
+        .Select(line => line[2..].Replace("**", "").Replace("`", "").Trim())
+        .Where(line => line.Length > 0 && !line.Contains("http", StringComparison.OrdinalIgnoreCase))
+        .Take(MostNotes)
+        .ToArray();
 
     // 1.9 and 1.9.0.0 are the same release
     static Version Trim(Version v) => new(v.Major, v.Minor, Math.Max(v.Build, 0));

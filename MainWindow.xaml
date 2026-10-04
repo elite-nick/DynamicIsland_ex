@@ -325,6 +325,20 @@
                                   HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,14,0"/>
                 </Grid>
 
+                <!-- the update on its way, while the island is closed: the ring of its page and how much is here -->
+                <Grid x:Name="LoadingView" Width="118" Height="34" HorizontalAlignment="Center" VerticalAlignment="Top">
+                    <local:Ring x:Name="LoadingRing" Width="18" Height="18" Progress="0" Stroke="{StaticResource Orange}"
+                                RenderTransformOrigin="0.5,0.5"
+                                HorizontalAlignment="Left" VerticalAlignment="Center" Margin="9,0,0,0">
+                        <local:Ring.RenderTransform>
+                            <ScaleTransform ScaleX="-1"/>
+                        </local:Ring.RenderTransform>
+                    </local:Ring>
+                    <local:Digits x:Name="LoadingText" Text="0%" FontSize="13.5" FontWeight="SemiBold"
+                                  Foreground="{StaticResource Orange}"
+                                  HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,14,0"/>
+                </Grid>
+
                 <!-- volume HUD -->
                 <Grid x:Name="VolumeView" Width="250" Height="34" HorizontalAlignment="Center" VerticalAlignment="Top">
                     <Grid.ColumnDefinitions>
@@ -739,17 +753,64 @@
                                 <local:Toggle x:Name="AutostartSwitch" Width="38" Height="22" HorizontalAlignment="Right"/>
                             </Grid>
                         </Button>
-                        <!-- the version that runs; once GitHub has a newer one, a click fetches it and starts it -->
-                        <Button Style="{StaticResource RowButton}" Click="Update_Click">
+                        <!-- the version that runs, or the newer one GitHub has; leads to the page of the update -->
+                        <Button Style="{StaticResource RowButton}" Click="UpdateRow_Click">
                             <Grid>
                                 <local:Icon Kind="Update" Width="17" Height="17" Fill="{StaticResource Dim}"
                                             HorizontalAlignment="Left" VerticalAlignment="Center"/>
                                 <TextBlock Text="Обновление" Margin="29,0,0,0" VerticalAlignment="Center"/>
-                                <TextBlock x:Name="UpdateText" Foreground="{StaticResource Dim}"
-                                           HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                    <TextBlock x:Name="UpdateText" Foreground="{StaticResource Dim}" VerticalAlignment="Center"/>
+                                    <local:Icon Kind="Chevron" Width="11" Height="11"
+                                                Fill="{StaticResource Dim}" Margin="8,1,0,0" VerticalAlignment="Center"/>
+                                </StackPanel>
                             </Grid>
                         </Button>
                     </local:RowList>
+                </Grid>
+
+                <!-- the page of the update, a step deeper than the switches: the release GitHub has, what is new in it
+                     and the button that fetches it. As tall as what it has to say; the heading leads back -->
+                <Grid x:Name="UpdatePage" Width="320" Height="150" HorizontalAlignment="Center" VerticalAlignment="Top">
+                    <StackPanel x:Name="UpdateBody" Margin="10,8,10,0" VerticalAlignment="Top">
+                        <local:RowList>
+                            <Button Style="{StaticResource RowButton}" Height="32" Margin="0,0,0,2" Click="UpdateBack_Click">
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <local:Icon Kind="Back" Width="10" Height="10" Fill="#66FFFFFF" VerticalAlignment="Center"/>
+                                    <TextBlock Text="ОБНОВЛЕНИЕ" FontSize="10.5" FontWeight="SemiBold" Foreground="#66FFFFFF"
+                                               Margin="6,0,0,0" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Button>
+                        </local:RowList>
+                        <StackPanel Orientation="Horizontal" Margin="12,2,12,0">
+                            <TextBlock x:Name="UpdateVersion" FontSize="30" FontWeight="SemiBold" Foreground="White"
+                                       FontFamily="./Fonts/#SF Pro Display, SF Pro Display, Segoe UI Variable Display, Segoe UI"/>
+                            <TextBlock x:Name="UpdateFrom" FontSize="13.5" Foreground="{StaticResource Dim}"
+                                       Margin="9,0,0,5" VerticalAlignment="Bottom"/>
+                        </StackPanel>
+                        <StackPanel x:Name="UpdateNotes" Margin="12,10,12,0">
+                            <TextBlock Text="ЧТО НОВОГО" FontSize="10.5" FontWeight="SemiBold" Foreground="#66FFFFFF"/>
+                            <TextBlock x:Name="UpdateNotesText" FontSize="12.5" Foreground="{StaticResource Dim}" Margin="0,5,0,0"
+                                       TextWrapping="Wrap" LineHeight="18" LineStackingStrategy="BlockLineHeight"/>
+                        </StackPanel>
+                        <Grid Height="36" Margin="4,14,4,0">
+                            <Button x:Name="UpdateButton" Style="{StaticResource ChipButton}" Height="36" Margin="0"
+                                    FontSize="13.5" FontWeight="SemiBold" Click="Update_Click"/>
+                            <!-- in its place while the exe is on its way: the ring fills as it comes -->
+                            <Grid x:Name="UpdateLoad" Margin="8,0" Visibility="Collapsed">
+                                <local:Ring x:Name="UpdateRing" Width="22" Height="22" Thickness="3" Progress="0"
+                                            Stroke="{StaticResource Orange}" RenderTransformOrigin="0.5,0.5"
+                                            HorizontalAlignment="Left" VerticalAlignment="Center">
+                                    <local:Ring.RenderTransform>
+                                        <ScaleTransform ScaleX="-1"/>
+                                    </local:Ring.RenderTransform>
+                                </local:Ring>
+                                <TextBlock Text="Скачиваю" FontSize="13.5" Foreground="White" Margin="34,0,0,0" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="UpdateBytes" FontSize="13.5" Foreground="{StaticResource Dim}"
+                                           HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                            </Grid>
+                        </Grid>
+                    </StackPanel>
                 </Grid>
 
                 <!-- its third: how the island looks. A click on a row steps to its next value and the wheel goes

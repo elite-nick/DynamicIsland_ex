@@ -15,10 +15,10 @@ namespace DynamicIsland;
 
 public partial class MainWindow : Window
 {
-    enum View { Idle, Media, Timer, Volume, Charge, Focus, Toast, Notice, MediaBig, IdleBig, TimerBig, TimerSet, Menu, Settings, Look, Shelf }
+    enum View { Idle, Media, Timer, Volume, Charge, Focus, Toast, Notice, MediaBig, IdleBig, TimerBig, TimerSet, Menu, Settings, Look, Shelf, Update, Loading }
 
     /// <summary>What a click has opened; None is the compact pill.</summary>
-    enum Panel { None, Player, Timer, TimerSet, Menu, Settings, Look, Shelf }
+    enum Panel { None, Player, Timer, TimerSet, Menu, Settings, Look, Shelf, Update }
 
     /// <summary>What a press on the compact pill has turned into: still just held, pulled down, or pushed sideways.</summary>
     enum Grab { None, Held, Pull, Lean }
@@ -43,6 +43,8 @@ public partial class MainWindow : Window
         [View.Settings] = new(320, 374, 34),
         [View.Look] = new(320, 248, 34),
         [View.Shelf] = new(380, 136, 34),
+        [View.Update] = new(320, 150, 34), // as tall as what the page has to say
+        [View.Loading] = new(118, 34, 17),
     };
 
     /// <summary>
@@ -258,6 +260,8 @@ public partial class MainWindow : Window
             [View.Settings] = SettingsView,
             [View.Look] = LookView,
             [View.Shelf] = ShelfView,
+            [View.Update] = UpdatePage,
+            [View.Loading] = LoadingView,
         };
         foreach (FrameworkElement v in _views.Values)
         {
@@ -426,6 +430,7 @@ public partial class MainWindow : Window
         Intro();
         _tick.Start();
         if (_forcedTimer > 0) StartTimer(TimeSpan.FromSeconds(_forcedTimer));
+        if (_forced == View.Update) _ = _updater.CheckAsync();
 
         try { await _media.StartAsync(); }
         catch (Exception ex) { App.Log(ex); }
@@ -459,12 +464,15 @@ public partial class MainWindow : Window
             Panel.Menu => View.Menu,
             Panel.Settings => View.Settings,
             Panel.Look => View.Look,
+            Panel.Update => View.Update,
             Panel.Shelf => View.Shelf,
             Panel.TimerSet => View.TimerSet,
             Panel.Timer when _timer.Active => View.TimerBig,
             Panel.Timer or Panel.Player => _media.HasTrack ? View.MediaBig : View.IdleBig,
             // the music keeps the pill; a running timer takes it only when nothing plays (otherwise it is the bubble)
-            _ => _transient ?? (MediaActive ? View.Media : _timer.Active ? View.Timer : View.Idle),
+            // an update on its way has it for the few moments that takes
+            _ => _transient ?? (_updater.State == Updater.Stage.Loading ? View.Loading
+                : MediaActive ? View.Media : _timer.Active ? View.Timer : View.Idle),
         };
         if (target == View.Toast && !_media.HasTrack) target = View.Idle;
         if (target == _current)
@@ -535,9 +543,13 @@ public partial class MainWindow : Window
         else FadeOut(Shared);
     }
 
-    /// <summary>Which way a change of view goes through the menu: 1 into one of its pages, -1 back out to it, 0 when it is neither.</summary>
+    /// <summary>
+    /// Which way a change of view goes through the menu: 1 into one of its pages, -1 back out to it, 0 when it is neither.
+    /// The page of the update lies a step further in, past the switches.
+    /// </summary>
     static int Turn(View from, View to) =>
-        from == View.Menu && Pages.Contains(to) ? 1 : to == View.Menu && Pages.Contains(from) ? -1 : 0;
+        from == View.Menu && Pages.Contains(to) || (from, to) == (View.Settings, View.Update) ? 1
+        : to == View.Menu && Pages.Contains(from) || (from, to) == (View.Update, View.Settings) ? -1 : 0;
 
     // the light edge takes the colour of the cover for as long as the island is about its music
     void SyncRim()
@@ -609,6 +621,7 @@ public partial class MainWindow : Window
     {
         View.Media => Sizes[view] with { W = _mediaWidth },
         View.MediaBig when _playerRoom => Sizes[view] with { H = PlayerHeight + PlayerLyricRoom },
+        View.Update => Sizes[view] with { H = UpdatePage.Height },
         _ => Sizes[view],
     };
 
@@ -2528,8 +2541,22 @@ public partial class MainWindow : Window
     {
         _panel = Panel.Settings;
         UpdateView();
-        // the page says whether there is a newer island
+        // its last row says whether there is a newer island
         _ = _updater.CheckAsync();
+    }
+
+    void UpdateRow_Click(object sender, RoutedEventArgs e)
+    {
+        _panel = Panel.Update;
+        UpdateView();
+        _ = _updater.CheckAsync();
+    }
+
+    // the heading of the page of the update: back to the switches it came from
+    void UpdateBack_Click(object sender, RoutedEventArgs e)
+    {
+        _panel = Panel.Settings;
+        UpdateView();
     }
 
     void LookRow_Click(object sender, RoutedEventArgs e)
@@ -2598,22 +2625,58 @@ public partial class MainWindow : Window
     async void Update_Click(object sender, RoutedEventArgs e)
     {
         if (_updater.State != Updater.Stage.Available) await _updater.CheckAsync(true);
-        else if (await _updater.InstallAsync()) Application.Current.Shutdown();
+        else if (await _updater.InstallAsync()) Leave();
     }
 
+    /// <summary>What the row of the switches and the page past it say about the update, and the ring of one on its way.</summary>
     void UpdateUpdate()
     {
-        bool found = _updater.State is Updater.Stage.Available or Updater.Stage.Loading;
+        Updater.Stage stage = _updater.State;
+        bool loading = stage == Updater.Stage.Loading, found = loading || stage == Updater.Stage.Available;
+
         UpdateText.Foreground = (Brush)FindResource(found ? "Orange" : "Dim");
-        UpdateText.Text = _updater.State switch
+        UpdateText.Text = loading ? _updater.Percent + "%" : "v" + (found ? _updater.Found : Updater.Current);
+
+        UpdateVersion.Text = (found ? _updater.Found! : Updater.Current).ToString();
+        UpdateFrom.Text = stage switch
         {
-            Updater.Stage.Checking => "Проверяю…",
-            Updater.Stage.Latest => $"v{Updater.Current} · последняя",
-            Updater.Stage.Available => $"Обновить до v{_updater.Found}",
-            Updater.Stage.Loading => $"Скачиваю {_updater.Percent}%",
-            Updater.Stage.Failed => "Не удалось · ещё раз",
-            _ => "v" + Updater.Current,
+            Updater.Stage.Checking => "проверяю…",
+            Updater.Stage.Latest => "последняя версия",
+            Updater.Stage.Failed => "не получилось",
+            _ => found ? "вместо " + Updater.Current : "",
         };
+        UpdateNotes.Visibility = found && _updater.Notes.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        UpdateNotesText.Text = string.Join('\n', _updater.Notes.Select(note => "·  " + note));
+
+        UpdateButton.Visibility = loading ? Visibility.Collapsed : Visibility.Visible;
+        UpdateLoad.Visibility = loading ? Visibility.Visible : Visibility.Collapsed;
+        UpdateButton.Content = stage switch
+        {
+            Updater.Stage.Available => "Обновить и перезапустить",
+            Updater.Stage.Checking => "Проверяю…",
+            Updater.Stage.Failed => "Попробовать ещё раз",
+            _ => "Проверить ещё раз",
+        };
+        UpdateButton.Background = found ? (Brush)FindResource("Orange") : new SolidColorBrush(Color.FromArgb(0x1F, 255, 255, 255));
+        UpdateButton.Foreground = found ? Brushes.Black : Brushes.White;
+
+        if (loading)
+        {
+            UpdateBytes.Text = $"{_updater.Done >> 20} из {_updater.Total >> 20} МБ";
+            LoadingText.Text = _updater.Percent + "%";
+            var fill = new DoubleAnimation(_updater.Percent / 100.0, Ms(200));
+            UpdateRing.BeginAnimation(Ring.ProgressProperty, fill);
+            LoadingRing.BeginAnimation(Ring.ProgressProperty, fill);
+        }
+
+        // the page is as tall as all that comes to
+        UpdateBody.Measure(new Size(UpdatePage.Width, double.PositiveInfinity));
+        double height = Math.Ceiling(UpdateBody.DesiredSize.Height) + 14;
+        bool resized = height != UpdatePage.Height;
+        UpdatePage.Height = height;
+        if (resized && _current == View.Update) SetTargets();
+        // closed, the island shows an update on its way in the pill
+        UpdateView();
     }
 
     void UpdateSwitches(bool animate)
@@ -2694,7 +2757,10 @@ public partial class MainWindow : Window
         SetTargets();
     }
 
-    void Exit_Click(object sender, RoutedEventArgs e)
+    void Exit_Click(object sender, RoutedEventArgs e) => Leave();
+
+    /// <summary>Fades the island out and closes it.</summary>
+    void Leave()
     {
         _tick.Stop();
         _alarm.Stop();
