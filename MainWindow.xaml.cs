@@ -71,6 +71,7 @@ public partial class MainWindow : Window
     const double RowLag = 28; // ms each row of it starts after the one above
     const double SourcePause = 0.25; // seconds between two turns to another app: a wheel sends its notches in bursts
     const double BubbleGap = 7; // between the split-off bubble and the pill
+    const double BubbleTuck = 1.6; // px deeper into the pill the bubble is put away, for each px its corners are rounder than the bubble's ends
     const double CarryTimer = 78, CarryShelf = 54; // width of the bubble carrying either (the shelf's at the least: more digits widen it)...
     const double CarryBoth = 11; // ...and how much narrower it is than the two together, when it carries both
     const double ShelfEnd = 13, ShelfEndTimed = 10; // the count's room to the bubble's right end, alone and after the timer, whose own ends are narrower
@@ -269,7 +270,6 @@ public partial class MainWindow : Window
         _r.Tune(300, 30);
         _seekX.Tune(170, 26);
         _seekH.Tune(420, 26);
-        _split.Tune(140, 17); // unhurried: the neck between the two has to be seen stretching and snapping
         _bubbleScale.Tune(320, 20);
         _push.Tune(420, 18); // loose enough to wobble once it is let go
         _carryTimer.Tune(260, 24);
@@ -567,6 +567,10 @@ public partial class MainWindow : Window
         bool timer = _timer.Active && _current != View.Timer, shelf = _shelf.Items.Count > 0;
         bool split = compact && (timer || shelf);
         _split.Target = split ? 1 : 0;
+        // beside the pill it is unhurried: the neck between the two has to be seen stretching and snapping. A pill
+        // that opens up swallows it, at the pace it grows itself
+        if (compact) _split.Tune(140, 17);
+        else _split.Tune(300, 30);
         if (split)
         {
             _carryTimer.Target = timer ? 1 : 0;
@@ -717,14 +721,17 @@ public partial class MainWindow : Window
         BubbleShelf.Opacity = Math.Clamp(shelf * 2 - 1, 0, 1);
         // beside the timer the count keeps to the timer's ends, so the two sit as one row in the middle
         BubbleShelf.Margin = new Thickness(0, 0, ShelfEnd + (ShelfEndTimed - ShelfEnd) * Math.Clamp(timer, 0, 1), 0);
-        BubbleMove.X = (w * scale - wide) / 2 + (BubbleGap + wide) * split;
+        // an open pill has corners rounder than the bubble's ends: tucked just inside its right end, the bubble would
+        // stick out of the top one, to be gone all at once when it is put away. It goes that much deeper instead
+        double tuck = Math.Max(r - Bubble.Height / 2, 0) * BubbleTuck * (1 - Math.Clamp(split, 0, 1)) * scale;
+        BubbleMove.X = (w * scale - wide) / 2 + (BubbleGap + wide) * split - tuck;
         BubbleScale.ScaleX = BubbleScale.ScaleY = bubble;
         BubbleBody.Opacity = Math.Clamp(split * 4 - 3, 0, 1);
         // until then the pill's end is the pill's to click
         Bubble.IsHitTestVisible = split > 0.75;
 
         // the body is drawn in the pill's own scale, so the bubble is measured in it too
-        double past = ((BubbleGap + wide) * split - wide) / scale; // of its left end beyond the pill's right one
+        double past = ((BubbleGap + wide) * split - wide - tuck) / scale; // of its left end beyond the pill's right one
         Body.Shape(pill, r, apart
             ? new Rect(pill.Right + past, 0, wide * bubble / scale, Bubble.Height * bubble / scale)
             : Rect.Empty);
