@@ -1,6 +1,5 @@
 name: Release
 
-# Pushing a tag like v1.2.0 builds the exe and publishes it as a GitHub release
 on:
   push:
     tags: ['v*']
@@ -20,7 +19,6 @@ jobs:
         with:
           dotnet-version: 8.0.x
 
-      # self-contained: runs on a clean Windows, no .NET install needed
       - name: Publish
         shell: pwsh
         run: >
@@ -32,8 +30,6 @@ jobs:
           -p:Version=$($env:TAG.TrimStart('v'))
           -o out
 
-      # the message of an annotated tag becomes the notes of the release: its "- " lines are what the island
-      # lists as new on the page of the update. A plain tag gets the notes GitHub writes
       - name: Create release
         shell: pwsh
         env:

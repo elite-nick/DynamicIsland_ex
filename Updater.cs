@@ -7,122 +7,119 @@ using System.Text.Json;
 
 namespace DynamicIsland;
 
-/// <summary>
-/// Looks the latest release up on GitHub and, asked to, puts its exe in the place of the one that runs and starts it.
-/// </summary>
 sealed class Updater
 {
     public enum Stage { Idle, Checking, Latest, Available, Loading, Failed }
 
-    const string Latest = "https://api.github.com/repos/mihailkotovski/DynamicIsland/releases/latest";
-    const string Asset = "DynamicIsland.exe";
-    const int MostNotes = 6;
-    /// <summary>Tells the island it was started by the one it replaces, which may not have gone yet.</summary>
-    public const string Restarted = "--updated";
+    public const string RestartedFlag = "--updated";
 
-    // the page is opened many times over: the release is not asked for again sooner than this
-    static readonly TimeSpan Fresh = TimeSpan.FromMinutes(30);
-    // set before the client, which names it in its requests
-    public static Version Current { get; } = Trim(Assembly.GetExecutingAssembly().GetName().Version ?? new Version(0, 0, 0));
-    static readonly HttpClient Http = CreateClient();
+    const string LatestReleaseUrl = "https://api.github.com/repos/mihailkotovski/DynamicIsland/releases/latest";
+    const string AssetName = "DynamicIsland.exe";
+    const string HashPrefix = "sha256:";
+    const int MaxNotes = 6;
+    const int BufferSize = 1 << 16;
+    const int CleanUpAttempts = 10;
+    static readonly TimeSpan CheckInterval = TimeSpan.FromMinutes(30);
+    static readonly TimeSpan CheckTimeout = TimeSpan.FromSeconds(15);
+    static readonly TimeSpan CleanUpRetry = TimeSpan.FromSeconds(1);
+    static readonly HttpClient Http;
 
-    string _url = "", _digest = "";
-    DateTime _checked;
+    static Updater()
+    {
+        CurrentVersion = Normalize(Assembly.GetExecutingAssembly().GetName().Version ?? new Version(0, 0, 0));
+        Http = CreateClient(CurrentVersion);
+    }
 
-    /// <summary>Raised on the calling (UI) thread whenever the stage or the progress has changed.</summary>
+    string _downloadUrl = "", _digest = "";
+    DateTime _checkedAt;
+
+    public static Version CurrentVersion { get; }
+
     public event Action? Changed;
 
     public Stage State { get; private set; }
 
-    /// <summary>The release on GitHub, once it is known.</summary>
-    public Version? Found { get; private set; }
+    public Version? LatestVersion { get; private set; }
 
-    /// <summary>What the release says is new in it, a line each; empty when it says nothing.</summary>
     public string[] Notes { get; private set; } = [];
 
-    /// <summary>How much of the new exe is here, 0..100.</summary>
     public int Percent { get; private set; }
 
-    /// <summary>Bytes of the new exe that are here, and all there are of them; 0 while that is not known.</summary>
-    public long Done { get; private set; }
-    public long Total { get; private set; }
+    public long DownloadedBytes { get; private set; }
 
-    static string Exe => Environment.ProcessPath ?? "";
-    static string Old => Exe + ".old";
-    static string Fetched => Exe + ".new";
+    public long TotalBytes { get; private set; }
 
-    /// <summary>Call from the UI thread. Asks GitHub which release is the latest, unless it was asked a moment ago.</summary>
+    static string ExePath => Environment.ProcessPath ?? "";
+    static string OldPath => ExePath + ".old";
+    static string DownloadPath => ExePath + ".new";
+
     public async Task CheckAsync(bool force = false)
     {
         if (State is Stage.Checking or Stage.Loading) return;
-        if (!force && State != Stage.Failed && DateTime.UtcNow - _checked < Fresh) return;
+        if (!force && State != Stage.Failed && DateTime.UtcNow - _checkedAt < CheckInterval) return;
 
-        Set(Stage.Checking);
+        SetState(Stage.Checking);
         try
         {
-            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
-            using var doc = JsonDocument.Parse(await Http.GetStringAsync(Latest, timeout.Token));
-            JsonElement release = doc.RootElement;
-            Found = Trim(Version.Parse(release.GetProperty("tag_name").GetString()!.TrimStart('v')));
-            Notes = release.TryGetProperty("body", out JsonElement body) ? Listed(body.GetString() ?? "") : [];
-            _url = _digest = "";
+            using var timeout = new CancellationTokenSource(CheckTimeout);
+            using var document = JsonDocument.Parse(await Http.GetStringAsync(LatestReleaseUrl, timeout.Token));
+            JsonElement release = document.RootElement;
+            LatestVersion = Normalize(Version.Parse(release.GetProperty("tag_name").GetString()!.TrimStart('v')));
+            Notes = release.TryGetProperty("body", out JsonElement body) ? ParseNotes(body.GetString() ?? "") : [];
+            _downloadUrl = _digest = "";
             foreach (JsonElement asset in release.GetProperty("assets").EnumerateArray())
             {
-                if (asset.GetProperty("name").GetString() != Asset) continue;
-                _url = asset.GetProperty("browser_download_url").GetString() ?? "";
+                if (asset.GetProperty("name").GetString() != AssetName) continue;
+                _downloadUrl = asset.GetProperty("browser_download_url").GetString() ?? "";
                 if (asset.TryGetProperty("digest", out JsonElement digest)) _digest = digest.GetString() ?? "";
-                if (asset.TryGetProperty("size", out JsonElement size)) Total = size.GetInt64();
+                if (asset.TryGetProperty("size", out JsonElement size)) TotalBytes = size.GetInt64();
             }
-            _checked = DateTime.UtcNow;
-            Set(Found > Current && _url.Length > 0 ? Stage.Available : Stage.Latest);
+            _checkedAt = DateTime.UtcNow;
+            SetState(LatestVersion > CurrentVersion && _downloadUrl.Length > 0 ? Stage.Available : Stage.Latest);
         }
         catch (Exception ex)
         {
             App.Log(ex);
-            Set(Stage.Failed);
+            SetState(Stage.Failed);
         }
     }
 
-    /// <summary>
-    /// Call from the UI thread. Downloads the release found, swaps it with the exe that runs and starts it;
-    /// true once the new island has been started and this one is to close.
-    /// </summary>
     public async Task<bool> InstallAsync()
     {
         if (State != Stage.Available) return false;
 
         Percent = 0;
-        Done = 0;
-        Set(Stage.Loading);
+        DownloadedBytes = 0;
+        SetState(Stage.Loading);
         try
         {
             await DownloadAsync();
-            Swap();
-            Process.Start(new ProcessStartInfo(Exe, Restarted) { UseShellExecute = false });
+            ReplaceExe();
+            Process.Start(new ProcessStartInfo(ExePath, RestartedFlag) { UseShellExecute = false });
             return true;
         }
         catch (Exception ex)
         {
             App.Log(ex);
-            try { File.Delete(Fetched); }
+            try { File.Delete(DownloadPath); }
             catch { }
-            Set(Stage.Failed);
+            SetState(Stage.Failed);
             return false;
         }
     }
 
     async Task DownloadAsync()
     {
-        using HttpResponseMessage response = await Http.GetAsync(_url, HttpCompletionOption.ResponseHeadersRead);
+        using HttpResponseMessage response = await Http.GetAsync(_downloadUrl, HttpCompletionOption.ResponseHeadersRead);
         response.EnsureSuccessStatusCode();
         long total = response.Content.Headers.ContentLength ?? 0, done = 0;
-        if (total > 0) Total = total;
+        if (total > 0) TotalBytes = total;
 
         using var sha = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
         await using (Stream from = await response.Content.ReadAsStreamAsync())
-        await using (var to = new FileStream(Fetched, FileMode.Create, FileAccess.Write, FileShare.None, 1 << 16, true))
+        await using (var to = new FileStream(DownloadPath, FileMode.Create, FileAccess.Write, FileShare.None, BufferSize, true))
         {
-            var buffer = new byte[1 << 16];
+            var buffer = new byte[BufferSize];
             int read;
             while ((read = await from.ReadAsync(buffer)) > 0)
             {
@@ -132,66 +129,60 @@ sealed class Updater
                 int percent = total > 0 ? (int)(done * 100 / total) : 0;
                 if (percent == Percent) continue;
                 Percent = percent;
-                Done = done;
+                DownloadedBytes = done;
                 Changed?.Invoke();
             }
         }
 
         if (total > 0 && done != total) throw new IOException($"The update came short: {done} of {total} bytes.");
-        // GitHub states the hash of each file of a release; older releases have none
-        string hash = "sha256:" + Convert.ToHexString(sha.GetHashAndReset());
+        string hash = HashPrefix + Convert.ToHexString(sha.GetHashAndReset());
         if (_digest.Length > 0 && !hash.Equals(_digest, StringComparison.OrdinalIgnoreCase))
             throw new InvalidDataException("The update does not match the hash GitHub gives for it.");
     }
 
-    // an exe that runs cannot be written over, but it can be renamed: it steps aside and the new one takes its name
-    static void Swap()
+    static void ReplaceExe()
     {
-        File.Move(Exe, Old, true);
+        File.Move(ExePath, OldPath, true);
         try
         {
-            File.Move(Fetched, Exe);
+            File.Move(DownloadPath, ExePath);
         }
         catch
         {
-            File.Move(Old, Exe);
+            File.Move(OldPath, ExePath);
             throw;
         }
     }
 
-    /// <summary>Removes the exe the last update left behind. It may still be closing, so this takes a few tries.</summary>
     public static void CleanUp() => Task.Run(async () =>
     {
-        for (int i = 0; i < 10 && File.Exists(Old); i++)
+        for (int attempt = 0; attempt < CleanUpAttempts && File.Exists(OldPath); attempt++)
         {
-            try { File.Delete(Old); }
-            catch { await Task.Delay(1000); }
+            try { File.Delete(OldPath); }
+            catch { await Task.Delay(CleanUpRetry); }
         }
     });
 
-    void Set(Stage stage)
+    void SetState(Stage stage)
     {
         State = stage;
         Changed?.Invoke();
     }
 
-    // the items of the list in the notes of a release; the link to the changes that GitHub puts there is not one
-    static string[] Listed(string notes) => notes.Split('\n')
+    static string[] ParseNotes(string notes) => notes.Split('\n')
         .Select(line => line.Trim())
         .Where(line => line.Length > 2 && line[0] is '-' or '*' or '•' && line[1] == ' ')
         .Select(line => line[2..].Replace("**", "").Replace("`", "").Trim())
         .Where(line => line.Length > 0 && !line.Contains("http", StringComparison.OrdinalIgnoreCase))
-        .Take(MostNotes)
+        .Take(MaxNotes)
         .ToArray();
 
-    // 1.9 and 1.9.0.0 are the same release
-    static Version Trim(Version v) => new(v.Major, v.Minor, Math.Max(v.Build, 0));
+    static Version Normalize(Version version) => new(version.Major, version.Minor, Math.Max(version.Build, 0));
 
-    static HttpClient CreateClient()
+    static HttpClient CreateClient(Version current)
     {
-        // no timeout: the exe is tens of megabytes, and how long it takes is up to the connection
         var http = new HttpClient { Timeout = Timeout.InfiniteTimeSpan };
-        http.DefaultRequestHeaders.UserAgent.ParseAdd("DynamicIsland/" + Current);
+        http.DefaultRequestHeaders.UserAgent.ParseAdd("DynamicIsland/" + current);
         http.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
         return http;
     }

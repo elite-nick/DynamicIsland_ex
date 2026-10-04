@@ -5,18 +5,17 @@ namespace DynamicIsland;
 
 public partial class App : Application
 {
+    const string InstanceName = "DynamicIsland.SingleInstance";
+    const string LogFileName = "DynamicIsland.log";
+    static readonly TimeSpan PredecessorExitTimeout = TimeSpan.FromSeconds(10);
+
     Mutex? _mutex;
 
     protected override void OnStartup(StartupEventArgs e)
     {
-        _mutex = new Mutex(true, "DynamicIsland.SingleInstance", out bool fresh);
-        // started by the island it has just replaced: that one is on its way out
-        if (!fresh && e.Args.Contains(Updater.Restarted))
-        {
-            try { fresh = _mutex.WaitOne(TimeSpan.FromSeconds(10)); }
-            catch (AbandonedMutexException) { fresh = true; }
-        }
-        if (!fresh)
+        _mutex = new Mutex(true, InstanceName, out bool isOnlyInstance);
+        if (!isOnlyInstance && e.Args.Contains(Updater.RestartedFlag)) isOnlyInstance = WaitForPredecessor(_mutex);
+        if (!isOnlyInstance)
         {
             Shutdown();
             return;
@@ -24,10 +23,10 @@ public partial class App : Application
         Updater.CleanUp();
 
         base.OnStartup(e);
-        DispatcherUnhandledException += (_, a) =>
+        DispatcherUnhandledException += (_, args) =>
         {
-            Log(a.Exception);
-            a.Handled = true;
+            Log(args.Exception);
+            args.Handled = true;
         };
         new MainWindow().Show();
     }
@@ -36,9 +35,15 @@ public partial class App : Application
     {
         try
         {
-            File.AppendAllText(Path.Combine(Path.GetTempPath(), "DynamicIsland.log"),
+            File.AppendAllText(Path.Combine(Path.GetTempPath(), LogFileName),
                 $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {ex}\n\n");
         }
         catch { }
+    }
+
+    static bool WaitForPredecessor(Mutex mutex)
+    {
+        try { return mutex.WaitOne(PredecessorExitTimeout); }
+        catch (AbandonedMutexException) { return true; }
     }
 }
