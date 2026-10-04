@@ -40,7 +40,7 @@ public partial class MainWindow : Window
         [View.TimerBig] = new(330, 92, 40),
         [View.TimerSet] = new(300, 190, 38),
         [View.Menu] = new(300, 248, 34),
-        [View.Settings] = new(320, 334, 34),
+        [View.Settings] = new(320, 374, 34),
         [View.Look] = new(320, 248, 34),
         [View.Shelf] = new(380, 136, 34),
     };
@@ -155,6 +155,7 @@ public partial class MainWindow : Window
     readonly float[] _bands = new float[SpectrumService.Bands];
     readonly MediaService _media;
     readonly LyricsService _lyrics = new();
+    readonly Updater _updater = new();
     readonly NetworkService _network;
     readonly Countdown _timer = new();
     readonly Shelf _shelf;
@@ -321,6 +322,7 @@ public partial class MainWindow : Window
         _lyrics.Changed += () => UpdateLyric();
         _network = new NetworkService(Dispatcher);
         _network.Changed += OnNetworkChanged;
+        _updater.Changed += UpdateUpdate;
         _shelf = new Shelf(Dispatcher);
         _shelf.Changed += SyncShelf;
         _shelf.Pictured += item =>
@@ -418,6 +420,7 @@ public partial class MainWindow : Window
         UpdateClock();
         UpdateSwitches(false);
         UpdateLook();
+        UpdateUpdate();
         SyncAccent(false);
         SyncShelf();
         Intro();
@@ -2525,6 +2528,8 @@ public partial class MainWindow : Window
     {
         _panel = Panel.Settings;
         UpdateView();
+        // the page says whether there is a newer island
+        _ = _updater.CheckAsync();
     }
 
     void LookRow_Click(object sender, RoutedEventArgs e)
@@ -2587,6 +2592,28 @@ public partial class MainWindow : Window
         Settings.HideFullscreen = !Settings.HideFullscreen;
         UpdateSwitches(true);
         CheckFullscreen();
+    }
+
+    // a newer release is there: fetch it and let it take over. Otherwise look for one again
+    async void Update_Click(object sender, RoutedEventArgs e)
+    {
+        if (_updater.State != Updater.Stage.Available) await _updater.CheckAsync(true);
+        else if (await _updater.InstallAsync()) Application.Current.Shutdown();
+    }
+
+    void UpdateUpdate()
+    {
+        bool found = _updater.State is Updater.Stage.Available or Updater.Stage.Loading;
+        UpdateText.Foreground = (Brush)FindResource(found ? "Orange" : "Dim");
+        UpdateText.Text = _updater.State switch
+        {
+            Updater.Stage.Checking => "Проверяю…",
+            Updater.Stage.Latest => $"v{Updater.Current} · последняя",
+            Updater.Stage.Available => $"Обновить до v{_updater.Found}",
+            Updater.Stage.Loading => $"Скачиваю {_updater.Percent}%",
+            Updater.Stage.Failed => "Не удалось · ещё раз",
+            _ => "v" + Updater.Current,
+        };
     }
 
     void UpdateSwitches(bool animate)
