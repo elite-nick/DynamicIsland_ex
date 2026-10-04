@@ -1723,8 +1723,8 @@ public partial class MainWindow : Window
         double width = PlayerLyricBox.Width, top = 0, size = Settings.LyricEffects ? PlayerLyricSmall : 1;
         for (int i = 0; i < lines.Length; i++)
         {
-            // a line with no words marks a break in the singing
-            var row = new Lyric(lines[i].Text.Length > 0 ? lines[i].Text : "♪")
+            // a line with no words marks a break in the singing: the row shows it as dots
+            var row = new Lyric(lines[i].Text)
             {
                 Width = width,
                 Opacity = PlayerLyricDim,
@@ -1779,7 +1779,10 @@ public partial class MainWindow : Window
 
         TimeSpan start = _playerLines[index].Time;
         TimeSpan end = index + 1 < _playerLines.Length ? _playerLines[index + 1].Time : _media.Duration;
-        double seconds = Math.Clamp((end - start).TotalSeconds, 0.3, PlayerLyricLongest);
+        // a line fills in a few seconds at most, whatever is left of its time being a pause; a break is counted
+        // down all the way to the line after it
+        double longest = Lyric.Wordless(_playerLines[index].Text) ? double.MaxValue : PlayerLyricLongest;
+        double seconds = Math.Clamp((end - start).TotalSeconds, 0.3, longest);
         _playerRows[index].Progress = Math.Clamp((_media.Position + LyricLead - start).TotalSeconds / seconds, 0, 1);
     }
 
