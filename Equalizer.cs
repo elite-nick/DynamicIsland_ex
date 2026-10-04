@@ -25,8 +25,14 @@ public sealed class Equalizer : FrameworkElement
         nameof(Fill), typeof(Brush), typeof(Equalizer),
         new FrameworkPropertyMetadata(Brushes.White, FrameworkPropertyMetadataOptions.AffectsRender));
 
+    // the same row as a board of dots: each bar is a column of them, lit from the bottom up as far as it stands
+    const double DotPitch = 4.2;                // a dot and the gap over it, about: the rows share the height out evenly
+    const double DotOff = 0.16, DotLit = 0.72;  // how bright a dot is unlit and lit; the topmost lit one is brighter still
+    const double DotHead = 0.5;                 // ...and this much of it is white
+
     int _bars = 5, _few = 5;
     double _open;
+    bool _dots;
     double[] _levels = null!, _targets = null!;
     int[] _rank = null!, _slot = null!; // band shown by each bar, and the bar showing each band
     // the spectrum shared out among the few bars and among all of them: both are kept listening, so the row has
@@ -72,6 +78,18 @@ public sealed class Equalizer : FrameworkElement
             value = Math.Clamp(value, 0, 1);
             if (value == _open) return;
             _open = value;
+            InvalidateVisual();
+        }
+    }
+
+    /// <summary>Drawn as columns of dots instead of bars.</summary>
+    public bool Dots
+    {
+        get => _dots;
+        set
+        {
+            if (value == _dots) return;
+            _dots = value;
             InvalidateVisual();
         }
     }
@@ -159,7 +177,8 @@ public sealed class Equalizer : FrameworkElement
         {
             // the bars past the few come in one after another, each growing out of nothing in its place
             double there = Math.Clamp(standing - _rank[i], 0, 1);
-            if (there > 0.001)
+            if (there > 0.001 && _dots) Column(dc, x, h, _levels[i], there);
+            else if (there > 0.001)
             {
                 double bw = BarWidth * there, bh = bw + _levels[i] * (h - bw) * there;
                 var rect = new Rect(x, (h - bh) / 2, bw, bh);
@@ -169,6 +188,34 @@ public sealed class Equalizer : FrameworkElement
                 dc.Pop();
             }
             x += there * (BarWidth + gap);
+        }
+    }
+
+    /// <summary>One bar as a column of dots, <paramref name="there"/> of it standing.</summary>
+    void Column(DrawingContext dc, double x, double h, double level, double there)
+    {
+        // as many rows as fit; between two views of the music the height is on its way, and the row it makes room
+        // for grows out of nothing at the top, the way a bar does at the end of the row
+        double fit = h / DotPitch, whole = Math.Floor(fit), part = Math.Clamp((fit - whole - 0.3) / 0.4, 0, 1);
+        double rows = Math.Max(whole + part * part * (3 - 2 * part), 1);
+        double gap = (h - rows * BarWidth) / Math.Max(rows - 1, 1), y = h;
+        // the bottom dot is lit even in silence, as a bar at rest is a dot
+        double lit = 1 + level * (rows - 1);
+        for (int r = 0; r < rows; r++)
+        {
+            double row = Math.Min(rows - r, 1), size = BarWidth * there * row;
+            double on = Math.Clamp(lit - r, 0, 1), head = on * (1 - Math.Clamp(lit - r - 1, 0, 1));
+            var centre = new Point(x + BarWidth * there / 2, y - size / 2);
+            dc.PushOpacity((DotOff + (DotLit - DotOff) * on + (1 - DotLit) * head) * there * row);
+            dc.DrawEllipse(Fill, null, centre, size / 2, size / 2);
+            dc.Pop();
+            if (head > 0.01)
+            {
+                dc.PushOpacity(DotHead * head * there * row);
+                dc.DrawEllipse(Brushes.White, null, centre, size / 2, size / 2);
+                dc.Pop();
+            }
+            y -= row * (BarWidth + gap);
         }
     }
 

@@ -242,18 +242,23 @@
     <Grid x:Name="Root" Width="620" Height="410" Opacity="0"
           HorizontalAlignment="Center" VerticalAlignment="Top" RenderTransformOrigin="0.5,0"
           MouseLeftButtonDown="Root_MouseLeftButtonDown" MouseLeftButtonUp="Root_MouseLeftButtonUp"
+          MouseMove="Root_MouseMove"
           MouseRightButtonUp="Root_MouseRightButtonUp" MouseUp="Root_MouseUp" MouseWheel="Root_MouseWheel"
           AllowDrop="True" DragEnter="Root_DragOver" DragOver="Root_DragOver" DragLeave="Root_DragLeave" Drop="Root_Drop">
         <Grid.RenderTransform>
             <TransformGroup>
                 <TranslateTransform x:Name="RootMove"/>
+                <!-- sideways with the pointer that pushes the pill, the bubble along with it -->
+                <TranslateTransform x:Name="RootLean"/>
                 <ScaleTransform x:Name="RootSize"/>
             </TransformGroup>
         </Grid.RenderTransform>
 
-        <!-- the pill and everything in it: one piece under the pointer, scaled from its top centre -->
+        <!-- the pill and everything in it: one piece under the pointer, scaled from its top centre. A press on the
+             compact pill makes the pointer its own, to be pulled or pushed by it -->
         <Grid x:Name="Island" RenderTransformOrigin="0.5,0"
-              MouseEnter="Island_MouseEnter" MouseLeave="Island_MouseLeave">
+              MouseEnter="Island_MouseEnter" MouseLeave="Island_MouseLeave"
+              LostMouseCapture="Island_LostMouseCapture">
             <Grid.RenderTransform>
                 <ScaleTransform x:Name="IslandScale"/>
             </Grid.RenderTransform>
@@ -447,11 +452,8 @@
                         </Canvas.OpacityMask>
                         <!-- while the lyrics are looked up, faint lines with a sheen running through them hold their place -->
                         <local:Shimmer x:Name="PlayerLyricWait" Width="340" Height="70" Opacity="0"/>
-                        <Canvas x:Name="PlayerLyricLines">
-                            <Canvas.RenderTransform>
-                                <TranslateTransform x:Name="PlayerLyricMove"/>
-                            </Canvas.RenderTransform>
-                        </Canvas>
+                        <!-- the whole song in a column; the code scrolls its lines, each by itself -->
+                        <Canvas x:Name="PlayerLyricLines"/>
                     </Canvas>
 
                     <Grid Height="20" Margin="20,0,20,59" VerticalAlignment="Bottom">
@@ -474,9 +476,9 @@
                     </Grid>
 
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,8">
+                        <!-- a press sends the triangles of either on by one place -->
                         <Button Style="{StaticResource IconButton}" Click="Prev_Click">
-                            <Path Data="M22,1 L12,7.5 L22,14 Z M11,1 L1,7.5 L11,14 Z" Fill="White" Stroke="White"
-                                  StrokeThickness="2" StrokeLineJoin="Round"/>
+                            <local:Skip x:Name="PrevIcon" Back="True"/>
                         </Button>
                         <Button Style="{StaticResource IconButton}" Width="52" Height="52" Margin="16,0" Click="Play_Click">
                             <!-- the two trade places: one shrinks away as the other comes in -->
@@ -488,8 +490,7 @@
                             </Grid>
                         </Button>
                         <Button Style="{StaticResource IconButton}" Click="Next_Click">
-                            <Path Data="M1,1 L11,7.5 L1,14 Z M12,1 L22,7.5 L12,14 Z" Fill="White" Stroke="White"
-                                  StrokeThickness="2" StrokeLineJoin="Round"/>
+                            <local:Skip x:Name="NextIcon"/>
                         </Button>
                     </StackPanel>
 
@@ -770,13 +771,13 @@
                                               HorizontalAlignment="Right" VerticalAlignment="Center"/>
                             </Grid>
                         </Button>
-                        <!-- how brightly the edge lights up on the bass of the music -->
-                        <Button x:Name="PulseRow" Style="{StaticResource RowButton}" Click="Pulse_Click">
+                        <!-- the bars of the music, or a board of dots in their place -->
+                        <Button Style="{StaticResource RowButton}" Click="Dots_Click">
                             <Grid>
-                                <local:Icon Kind="Pulse" Width="17" Height="17" Fill="{StaticResource Dim}"
+                                <local:Icon Kind="Bars" Width="17" Height="17" Fill="{StaticResource Dim}"
                                             HorizontalAlignment="Left" VerticalAlignment="Center"/>
-                                <TextBlock Text="Пульс ободка" Margin="29,0,0,0" VerticalAlignment="Center"/>
-                                <TextBlock x:Name="PulseText" Foreground="{StaticResource Dim}"
+                                <TextBlock Text="Эквалайзер" Margin="29,0,0,0" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="DotsText" Foreground="{StaticResource Dim}"
                                            HorizontalAlignment="Right" VerticalAlignment="Center"/>
                             </Grid>
                         </Button>

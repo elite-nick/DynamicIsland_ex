@@ -20,6 +20,9 @@ public partial class MainWindow : Window
     /// <summary>What a click has opened; None is the compact pill.</summary>
     enum Panel { None, Player, Timer, TimerSet, Menu, Settings, Look, Shelf }
 
+    /// <summary>What a press on the compact pill has turned into: still just held, pulled down, or pushed sideways.</summary>
+    enum Grab { None, Held, Pull, Lean }
+
     readonly record struct Dims(double W, double H, double R);
 
     static readonly Dictionary<View, Dims> Sizes = new()
@@ -62,11 +65,18 @@ public partial class MainWindow : Window
     const double HostWidth = 620;
     static readonly int[] Scales = [85, 100, 115, 130]; // percent: the sizes to pick from
     static readonly int[] Gaps = [0, 4, 8, 12, 16, 24]; // px between the top of the screen and the island
-    static readonly string[] Pulses = ["Выкл.", "Слабый", "Средний", "Сильный"]; // how much the edge makes of the bass...
-    static readonly double[] PulseShare = [0, 0.4, 0.7, 1]; // ...and how brightly it lights up at each
-    const double PulseFrom = 0.5; // height of the lowest bar past which the edge lights up: where it sits at its usual level
-    const double PulseAttack = 0.02, PulseRelease = 0.22; // seconds: the light comes with the beat and lingers after it
     const double ArtFull = 64, ArtRadius = 16; // the cover as it is laid out: the size the player shows it at
+    const double ArtPaused = 0.85; // ...and how much of that is left of it there while its track is paused
+    const double GrabSlop = 5; // px the pointer goes with the pill held before that is a drag
+    const double Give = 0.9; // how much of the pointer's way the pill goes with it as a drag begins: less and less after
+    const double PullMost = 96, LeanMost = 44; // px it gives at the most: pulled down, pushed sideways
+    const double PullWide = 0.4, PullRound = 0.3; // what each px it is pulled down adds to its width, and to its corners
+    const double LeanLong = 0.6; // ...and each px it is pushed sideways to its width: it is drawn out that way
+    const double PullOpens = 42, LeanSkips = 40; // px of the pointer's way past which letting go opens the island, skips a track
+    const double FlickPace = 550, FlickLeast = 12; // px per second that do the same after a way as short as this
+    const double ThrowMost = 1000; // px per second the island takes over from the pointer at the most
+    const double GrabEven = 0.03; // seconds the pointer's pace is evened out over
+    const double GrabStale = 0.09; // ...and seconds without a move after which it has stopped, not let go in flight
     const double PageShift = 56; // px a page of the menu comes in from, or goes out by
     const double RowLag = 28; // ms each row of it starts after the one above
     const double SourcePause = 0.25; // seconds between two turns to another app: a wheel sends its notches in bursts
@@ -107,6 +117,8 @@ public partial class MainWindow : Window
     const double PlayerLyricBlur = 1.5; // ...and how far out of focus they are
     const double PlayerLyricAhead = 0.6; // opacity of the part of that line not sung yet
     const double PlayerLyricLongest = 8; // seconds a line takes to fill at most: what is left until the next one is a break
+    const double PlayerLyricLag = 0.04; // seconds each line sets off after the one before it as they scroll
+    const int PlayerLyricSight = 4; // lines to either side of the one being sung that may be in sight
     static readonly TimeSpan LyricLead = TimeSpan.FromMilliseconds(200); // the line lands as it is sung, not after
     static readonly TimeSpan PausedGrace = TimeSpan.FromSeconds(30);
     static readonly TimeSpan CollapseDelay = TimeSpan.FromMilliseconds(550); // open panel, pointer gone
@@ -133,6 +145,8 @@ public partial class MainWindow : Window
     readonly Spring _artX = new(0), _artY = new(0), _art = new(ArtFull);
     readonly Spring _eqEnd = new(0), _eqMid = new(0), _eqW = new(1), _eqH = new(1), _eqOpen = new(0);
     readonly Spring[] _spot;
+    readonly Spring _artPlay = new(1); // share of its size the cover is shown at: in the player it steps back while paused
+    readonly Spring _lean = new(0); // px the island is pushed sideways by the pointer
     readonly SolidColorBrush _accent = new(Colors.White);
     readonly SolidColorBrush _timerTint; // everything a countdown shows is drawn with it: orange, red at the end
     readonly ScaleTransform _beat = new(1, 1), _beatBig = new(1, 1); // the rings and the big digits, on each of the last seconds
@@ -162,7 +176,12 @@ public partial class MainWindow : Window
     bool _hover, _pressed, _hidden, _animating, _eqRunning, _seekRunning, _scrubbing;
     bool _away; // sent off screen by a middle click
     bool _bubbleHover, _bubblePressed;
-    bool _morph; // the island is changing from one view to another: what it shows rides the shape
+    Grab _grab; // what the press on the compact pill has turned into
+    Point _grabFrom, _grabLast; // where it began, and where the pointer was last seen, in the window...
+    double _grabAt; // ...and when
+    Vector _grabPace; // px per second the pointer goes at
+    double _pullBy, _leanBy; // px it has taken the pill down, and sideways
+    bool _morph; // the island is changing from one view to another, or is pulled: what it shows rides the shape
     bool _ringing; // the countdown ran out and the alarm is still going
     bool _urgent; // ...and it is in its last seconds
     bool? _quiet; // "Do not disturb" is on; null until it is first read
@@ -176,7 +195,6 @@ public partial class MainWindow : Window
     int _minutes = 25, _timerShown = -1;
     int _shelfShown; // files the counters read
     double _lastFrame, _eqFrame, _seekFrame;
-    double _pulse; // how far the edge is lit by the bass
     Rect _cut = Rect.Empty; // the pill the views were last cut to...
     double _cutRadius; // ...and its corners
     double _scrub, _scrubUntil; // fraction under the pointer; it stays on the bar until the player reports the jump
@@ -203,6 +221,10 @@ public partial class MainWindow : Window
     LyricsService.Line[] _playerLines = [];
     Lyric[] _playerRows = [];
     double[] _playerMiddles = []; // where each row's middle sits in the column of lines
+    Spring[] _playerY = []; // px each row is moved by: the column does not scroll as one, every row is on a spring of its own
+    double[] _playerDue = []; // when each sets off on the scroll that is under way; 0 once it has
+    double _playerScroll; // px that scroll moves them by, to bring the line being sung to the middle
+    bool _playerRolling; // some of them are still on their way
     int _playerIndex = -1;
     bool _playerRoom; // the expanded player has made room for lyrics
     bool _playerWaiting; // ...and holds it with placeholder lines while they are looked up
@@ -252,6 +274,7 @@ public partial class MainWindow : Window
 
         LyricBox.CacheMode = _lyricCache;
         Eq.Fill = _accent;
+        Eq.Dots = Settings.Dots;
 
         _timerTint = new SolidColorBrush(Tone("Orange"));
         TimerRing.Stroke = BubbleRing.Stroke = BigRing.Stroke = _timerTint;
@@ -283,6 +306,7 @@ public partial class MainWindow : Window
         _shelfScroll.Tune(260, 30);
         _size.Tune(240, 26);
         _gap.Tune(240, 26);
+        Grip(false);
 
         // debug aid: `DynamicIsland.exe --view MediaBig` pins one state, `--timer 90` starts a 90 s countdown
         string[] args = Environment.GetCommandLineArgs();
@@ -380,8 +404,9 @@ public partial class MainWindow : Window
         {
             case Native.APPCOMMAND_VOLUME_UP when VolumeAtEnd(true): PushVolume(true); break;
             case Native.APPCOMMAND_VOLUME_DOWN when VolumeAtEnd(false): PushVolume(false); break;
-            case Native.APPCOMMAND_MEDIA_NEXTTRACK: Skipped(1); break;
-            case Native.APPCOMMAND_MEDIA_PREVIOUSTRACK: Skipped(-1); break;
+            // a key that skips a track works the player's button too, when that is open to show it
+            case Native.APPCOMMAND_MEDIA_NEXTTRACK: Skipped(1); NextIcon.Play(); break;
+            case Native.APPCOMMAND_MEDIA_PREVIOUSTRACK: Skipped(-1); PrevIcon.Play(); break;
         }
         return IntPtr.Zero;
     }
@@ -443,6 +468,7 @@ public partial class MainWindow : Window
         {
             SyncEq();
             SyncRim();
+            SyncCover();
             return;
         }
 
@@ -454,11 +480,13 @@ public partial class MainWindow : Window
         else WaitPlayerLyric(false);
         Dims to = SizeOf(target);
         bool growing = to.W * to.H >= from.W * from.H;
-        // overshoot a little when growing, settle firmly when shrinking
-        _w.Tune(growing ? 300 : 340, growing ? 22 : 30);
-        _h.Tune(growing ? 300 : 340, growing ? 22 : 30);
-        // the cover and the bars go with the shape
-        foreach (Spring part in _spot) part.Tune(_w.Stiffness, _w.Damping);
+        // the two sides of the shape do not move as one, or it would grow like a picture being scaled. Opening, the
+        // island spreads sideways first, a little past its width, and comes down after it; closing, it is drawn up
+        // first and narrows after, both settling firmly
+        _w.Tune(growing ? 330 : 260, growing ? 22 : 27);
+        _h.Tune(growing ? 220 : 400, growing ? 22 : 33);
+        // the cover and the bars go with its height: a pill not yet tall enough for them would cut them
+        foreach (Spring part in _spot) part.Tune(_h.Stiffness, _h.Damping);
 
         _morph = true;
         Swap(_views[target], Turn(was, target));
@@ -467,6 +495,7 @@ public partial class MainWindow : Window
 
         SyncEq();
         SyncRim();
+        SyncCover();
         if (target == View.MediaBig) StartSeek();
         if (target == View.Media) UpdateLyric(true);
     }
@@ -517,6 +546,25 @@ public partial class MainWindow : Window
         Body.Tint(tint, Ms(450));
     }
 
+    // in the player the cover of a paused track steps back, and comes forward again with a bounce as it plays on
+    void SyncCover()
+    {
+        bool player = _current == View.MediaBig;
+        double to = player && !_media.IsPlaying ? ArtPaused : 1;
+        if (to == _artPlay.Target) return;
+        // only a track taken up again in the player bounces: on its way out of the player the cover just grows back
+        bool lively = player && to == 1;
+        _artPlay.Tune(lively ? 260 : 240, lively ? 13 : 25);
+        _artPlay.Target = to;
+        // not in sight yet, it comes up at the size it is to have
+        if (Shared.Visibility != Visibility.Visible || Shared.Opacity < 0.05)
+        {
+            _artPlay.Value = to;
+            _artPlay.Velocity = 0;
+        }
+        Animate();
+    }
+
     /// <summary>What the music is drawn in: the colour picked in the menu, or the one that stands for the cover.</summary>
     Color Accent => Settings.Accent ?? _media.Accent;
 
@@ -565,9 +613,22 @@ public partial class MainWindow : Window
     {
         Dims d = SizeOf(_current);
         bool compact = d.H < 40;
-        _w.Target = d.W;
-        _h.Target = d.H;
-        _r.Target = d.R;
+        // taken hold of, the pill goes with the pointer, less and less the further that takes it. Pulled down it gets
+        // taller, a little wider and rounder; pushed sideways it leans that way and is drawn out along it
+        double pull = Rubber(_pullBy, PullMost), lean = Math.Sign(_leanBy) * Rubber(Math.Abs(_leanBy), LeanMost);
+        bool taken = _grab is Grab.Pull or Grab.Lean;
+        _w.Target = d.W + pull * PullWide + Math.Abs(lean) * LeanLong;
+        _h.Target = d.H + pull;
+        _r.Target = d.R + pull * PullRound;
+        _lean.Target = lean;
+        // what a pulled pill shows keeps to its middle, and so do the cover and the bars
+        if (Spots.TryGetValue(_current, out Spot spot))
+        {
+            _artY.Target = spot.ArtY + pull / 2;
+            _eqMid.Target = spot.EqMid + pull / 2;
+        }
+        // whatever else has just set these springs for a move of its own, they keep to the pointer while it holds on
+        if (taken) Grip(true);
         // the timer splits off whenever the compact pill is showing something else, and the shelf whenever it holds anything
         bool timer = _timer.Active && _current != View.Timer, shelf = _shelf.Items.Count > 0;
         bool split = compact && (timer || shelf);
@@ -593,9 +654,27 @@ public partial class MainWindow : Window
         // a ringing timer shows itself even over a fullscreen app. Out of sight is past the gap above it too,
         // counted in the island's own px
         _offset.Target = (_hidden || _away) && !_ringing ? -(d.H + 30 + Settings.Gap * 100.0 / Settings.Scale) : 0;
-        _scale.Target = _pressed ? (compact ? 0.93 : 0.975) : _hover && compact ? 1.07 : 1;
+        // going with the pointer, the pill is not squeezed by it any more
+        _scale.Target = taken ? 1 : _pressed ? (compact ? 0.93 : 0.975) : _hover && compact ? 1.07 : 1;
         _bubbleScale.Target = _bubblePressed ? 0.93 : _bubbleHover ? 1.07 : 1;
         Animate();
+    }
+
+    /// <summary>How far the island gives to a drag of <paramref name="by"/> px: nearly as far at first, then less and less, and never more than <paramref name="most"/>.</summary>
+    static double Rubber(double by, double most) => most * (1 - 1 / (by * Give / most + 1));
+
+    /// <summary>
+    /// Holds the springs a drag moves tight to the pointer; let go, they are loose again, enough for the pill to
+    /// swing back past its place. A change of view sets them for itself.
+    /// </summary>
+    void Grip(bool tight)
+    {
+        (double stiffness, double damping) = tight ? (900.0, 60.0) : (300.0, 21.0);
+        _w.Tune(stiffness, damping);
+        _h.Tune(stiffness, damping);
+        foreach (Spring part in _spot) part.Tune(stiffness, damping);
+        _r.Tune(tight ? 900 : 300, tight ? 60 : 30);
+        _lean.Tune(tight ? 900 : 230, tight ? 60 : 15);
     }
 
     /// <summary>The bubble's room for the shelf: the count with its icon, as far from the left end as from the right.</summary>
@@ -636,6 +715,8 @@ public partial class MainWindow : Window
         moving |= _shelfWide.Advance(dt);
         moving |= _shelfScroll.Advance(dt);
         moving |= _push.Advance(dt);
+        moving |= _lean.Advance(dt);
+        moving |= _artPlay.Advance(dt);
         foreach (Spring part in _spot) moving |= part.Advance(dt);
         ApplyShape();
 
@@ -668,8 +749,9 @@ public partial class MainWindow : Window
             PlayerLyricBox.Opacity = Math.Clamp((h - PlayerHeight) / PlayerLyricRoom * 2 - 1, 0, 1);
         }
         if (_morph) Ride(w, h);
-        // the faster the edges go, the more what is inside smears, the way anything quick does to the eye
-        double smear = _morph ? Math.Min(Math.Sqrt(_w.Velocity * _w.Velocity + _h.Velocity * _h.Velocity) / MotionPace, MotionMost) : 0;
+        // the faster the edges go, the more what is inside smears, the way anything quick does to the eye. Not under
+        // the pointer that drags them: what is held in the hand stays sharp
+        double smear = _morph && _grab == Grab.None ? Math.Min(Math.Sqrt(_w.Velocity * _w.Velocity + _h.Velocity * _h.Velocity) / MotionPace, MotionMost) : 0;
         _motion.Radius = smear;
         Host.Effect = smear > 0.1 ? _motion : null;
         double scrolled = _shelfScroll.Value, ahead = ShelfOverflow - scrolled;
@@ -699,13 +781,17 @@ public partial class MainWindow : Window
         // the lyric line's bitmap is drawn at the size it is shown, pixel for pixel, or it would be blurred
         double dpi = VisualTreeHelper.GetDpi(this).DpiScaleY;
         double sharp = size * scale * dpi;
+        // ...and pushed sideways the island goes by whole pixels of the screen, so the line stays on them
+        RootLean.X = Math.Round(_lean.Value * size * dpi) / (size * dpi);
         if (Math.Abs(_lyricCache.RenderAtScale - sharp) > 0.001) _lyricCache.RenderAtScale = sharp;
 
         // the cover keeps to the pill's left end and the bars to its right one, wherever between two views they are.
-        // The cover stands on whole pixels, as it would laid out in a view
-        ArtSize.ScaleX = ArtSize.ScaleY = Math.Max(_art.Value, 1) / ArtFull;
-        ArtMove.X = Math.Round((pill.Left + _artX.Value) * dpi) / dpi;
-        ArtMove.Y = Math.Round(_artY.Value * dpi) / dpi;
+        // The cover stands on whole pixels, as it would laid out in a view. Paused in the player it is smaller,
+        // about its own middle
+        double art = Math.Max(_art.Value, 1), back = art * (1 - _artPlay.Value) / 2;
+        ArtSize.ScaleX = ArtSize.ScaleY = Math.Max(art * _artPlay.Value, 1) / ArtFull;
+        ArtMove.X = Math.Round((pill.Left + _artX.Value) * dpi) / dpi + back;
+        ArtMove.Y = Math.Round(_artY.Value * dpi) / dpi + back;
         double eqW = Math.Max(_eqW.Value, 1), eqH = Math.Max(_eqH.Value, 1);
         Eq.Width = eqW;
         Eq.Height = eqH;
@@ -760,10 +846,11 @@ public partial class MainWindow : Window
         ((TranslateTransform)parts[2]).Y = down;
     }
 
-    // the shape has come to rest: everything stands where it is laid out, and sharp
+    // the shape has come to rest: everything stands where it is laid out, and sharp. Held still in mid-pull it is not
+    // at rest yet: let go, it moves again and comes here after
     void Settle()
     {
-        if (!_morph) return;
+        if (!_morph || _grab == Grab.Pull) return;
         _morph = false;
         foreach (FrameworkElement v in _views.Values) Ride(v, 1, 0);
         Host.Effect = null;
@@ -971,14 +1058,7 @@ public partial class MainWindow : Window
         bool moving = Eq.Tick(bands, level, playing, now, dt);
         moving |= Glow.Tick(Eq, now, dt);
 
-        // the island's edge lights up on the bass: as far as the lowest bar stands above its usual level. Once the
-        // music is out of sight the light is left to die away before the frames stop
-        double beat = EqVisible && playing ? Math.Clamp((Eq.Level(0) - PulseFrom) / (1 - PulseFrom), 0, 1) * PulseShare[Settings.Pulse] : 0;
-        _pulse += (beat - _pulse) * (1 - Math.Exp(-dt / (beat > _pulse ? PulseAttack : PulseRelease)));
-        bool lit = _pulse > 0.004;
-        Body.Beat(lit ? _pulse : _pulse = 0);
-
-        if (!lit && (!EqVisible || (!playing && !moving)))
+        if (!EqVisible || (!playing && !moving))
         {
             CompositionTarget.Rendering -= OnEqFrame;
             _eqRunning = false;
@@ -1695,11 +1775,71 @@ public partial class MainWindow : Window
 
         // before the first line is sung, it waits in the middle unlit
         double middle = _playerMiddles[Math.Max(index, 0)];
-        PlayerLyricMove.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(PlayerLyricBox.Height / 2 - middle, Ms(snap ? 0 : 450))
-        {
-            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
-        });
+        ScrollPlayerLyric(PlayerLyricBox.Height / 2 - middle, Math.Max(was, 0), Math.Max(index, 0), snap);
     }
+
+    /// <summary>
+    /// Brings the line being sung to the middle. The lines do not scroll as one: each is on a spring of its own and
+    /// sets off a moment after the one before it, so the move runs down the column like a wave.
+    /// </summary>
+    /// <param name="was">The line that was in the middle until now.</param>
+    void ScrollPlayerLyric(double to, int was, int index, bool snap)
+    {
+        // the song going on, the lines move up and the one just sung leads them; taken back, they move down and
+        // the one after leads
+        bool up = to <= _playerScroll;
+        int lead = index + (up ? -1 : 1);
+        double now = _time.Elapsed.TotalSeconds;
+        _playerScroll = to;
+        for (int i = 0; i < _playerRows.Length; i++)
+        {
+            Spring y = _playerY[i];
+            // a line too far from the middle to be seen, before the move or after it, is simply put in its place
+            if (snap || (Math.Abs(i - index) > PlayerLyricSight && Math.Abs(i - was) > PlayerLyricSight))
+            {
+                y.Value = y.Target = to;
+                y.Velocity = 0;
+                _playerDue[i] = 0;
+                Lift(_playerRows[i]).Y = to;
+                continue;
+            }
+            int behind = Math.Clamp(up ? i - lead : lead - i, 0, PlayerLyricSight + 1);
+            _playerDue[i] = now + behind * PlayerLyricLag;
+            _playerRolling = true;
+        }
+    }
+
+    /// <summary>A frame of that scroll: the lines whose turn has come set off, the ones on their way go on. They keep the pace they
+    /// have when the next line comes before they are there.</summary>
+    void RollPlayerLyric(double now, double dt)
+    {
+        if (!_playerRolling) return;
+        bool rolling = false;
+        for (int i = 0; i < _playerY.Length; i++)
+        {
+            Spring y = _playerY[i];
+            if (_playerDue[i] > 0)
+            {
+                if (now < _playerDue[i]) rolling = true;
+                else
+                {
+                    _playerDue[i] = 0;
+                    y.Target = _playerScroll;
+                }
+            }
+            // waiting for its turn, it may still be on its way from the scroll before this one
+            if (y.Value == y.Target && y.Velocity == 0) continue;
+            rolling |= y.Advance(dt);
+            Lift(_playerRows[i]).Y = y.Value;
+        }
+        _playerRolling = rolling;
+    }
+
+    /// <summary>What sets a line of the player's lyrics back among the others, smaller than the one being sung.</summary>
+    static ScaleTransform Zoom(Lyric row) => (ScaleTransform)((TransformGroup)row.RenderTransform).Children[0];
+
+    /// <summary>...and what moves it up or down the column.</summary>
+    static TranslateTransform Lift(Lyric row) => (TranslateTransform)((TransformGroup)row.RenderTransform).Children[1];
 
     /// <summary>Puts placeholder lines in the room held for the lyrics, or takes them away as the lyrics come (or do not).</summary>
     void WaitPlayerLyric(bool on)
@@ -1719,6 +1859,9 @@ public partial class MainWindow : Window
         PlayerLyricLines.Children.Clear();
         _playerRows = new Lyric[lines.Length];
         _playerMiddles = new double[lines.Length];
+        _playerY = new Spring[lines.Length];
+        _playerDue = new double[lines.Length];
+        _playerRolling = false;
 
         double width = PlayerLyricBox.Width, top = 0, size = Settings.LyricEffects ? PlayerLyricSmall : 1;
         for (int i = 0; i < lines.Length; i++)
@@ -1730,7 +1873,8 @@ public partial class MainWindow : Window
                 Opacity = PlayerLyricDim,
                 // the words start at the left, so that is the side a line shrinks towards
                 RenderTransformOrigin = new Point(0, 0.5),
-                RenderTransform = new ScaleTransform(size, size),
+                // its size among the others, and its way up the column
+                RenderTransform = new TransformGroup { Children = { new ScaleTransform(size, size), new TranslateTransform() } },
             };
             PlayerLyricLines.Children.Add(row);
             row.Measure(new Size(width, double.PositiveInfinity));
@@ -1738,6 +1882,9 @@ public partial class MainWindow : Window
             _playerMiddles[i] = top + row.DesiredSize.Height / 2;
             top += row.DesiredSize.Height + PlayerLyricGap;
             _playerRows[i] = row;
+            // soft, with next to no swing past its place: the wave is in the lines setting off one by one
+            _playerY[i] = new Spring(0);
+            _playerY[i].Tune(170, 22);
         }
     }
 
@@ -1751,8 +1898,8 @@ public partial class MainWindow : Window
         // set back, the whole line is lit evenly again, however far it had been sung
         row.BeginAnimation(Lyric.UnsungProperty, new DoubleAnimation(sung && effects ? PlayerLyricAhead : 1, time));
         var size = new DoubleAnimation(sung || !effects ? 1 : PlayerLyricSmall, time) { EasingFunction = ease };
-        row.RenderTransform.BeginAnimation(ScaleTransform.ScaleXProperty, size);
-        row.RenderTransform.BeginAnimation(ScaleTransform.ScaleYProperty, size);
+        Zoom(row).BeginAnimation(ScaleTransform.ScaleXProperty, size);
+        Zoom(row).BeginAnimation(ScaleTransform.ScaleYProperty, size);
     }
 
     void Focus(Lyric row, double radius, Duration time)
@@ -1829,8 +1976,9 @@ public partial class MainWindow : Window
         SeekBar.Height = thick;
         SeekBack.CornerRadius = SeekFill.CornerRadius = new CornerRadius(thick / 2);
         SeekFill.Width = Math.Clamp(_seekX.Value, 0, track);
-        // the line being sung is filled on the same frames
+        // the line being sung is filled on the same frames, and the lines scroll on them
         SweepPlayerLyric();
+        RollPlayerLyric(now, dt);
 
         // while scrubbing the labels read the spot under the pointer
         TimeSpan at = duration * shown;
@@ -1849,12 +1997,14 @@ public partial class MainWindow : Window
     void Prev_Click(object sender, RoutedEventArgs e)
     {
         Skipped(-1);
+        PrevIcon.Play();
         _media.Previous();
     }
 
     void Next_Click(object sender, RoutedEventArgs e)
     {
         Skipped(1);
+        NextIcon.Play();
         _media.Next();
     }
 
@@ -1930,6 +2080,44 @@ public partial class MainWindow : Window
     void Root_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         _pressed = true;
+        // the pill with nothing open can be taken hold of: pulled down it opens, pushed sideways it skips a track.
+        // The pointer is the island's own from here until it lets go, wherever it is taken meanwhile
+        if (_panel == Panel.None && !_ringing && Island.CaptureMouse())
+        {
+            _grab = Grab.Held;
+            _grabFrom = _grabLast = e.GetPosition(this);
+            _grabAt = _time.Elapsed.TotalSeconds;
+            _grabPace = default;
+        }
+        SetTargets();
+    }
+
+    void Root_MouseMove(object sender, MouseEventArgs e)
+    {
+        if (_grab == Grab.None) return;
+        Point at = e.GetPosition(this);
+        // the pace the pointer goes at, evened out over its last few steps: what the island is let go with
+        double now = _time.Elapsed.TotalSeconds, dt = now - _grabAt;
+        if (dt >= 0.004)
+        {
+            _grabPace += ((at - _grabLast) / dt - _grabPace) * (1 - Math.Exp(-dt / GrabEven));
+            _grabLast = at;
+            _grabAt = now;
+        }
+
+        // in the island's own px, whatever size it is shown at
+        Vector moved = (at - _grabFrom) / Math.Max(_size.Value, 0.01);
+        if (_grab == Grab.Held)
+        {
+            if (Math.Abs(moved.X) < GrabSlop && Math.Abs(moved.Y) < GrabSlop) return;
+            // the way it first goes is the way it is taken, to the end
+            _grab = Math.Abs(moved.X) > Math.Abs(moved.Y) ? Grab.Lean : Grab.Pull;
+            // what a pulled pill shows rides its shape, as it does between two views
+            if (_grab == Grab.Pull) _morph = true;
+        }
+        // there is no pushing it up into the edge of the screen
+        if (_grab == Grab.Pull) _pullBy = Math.Max(moved.Y, 0);
+        else _leanBy = moved.X;
         SetTargets();
     }
 
@@ -1938,15 +2126,93 @@ public partial class MainWindow : Window
         if (!_pressed) return;
         _pressed = false;
 
-        // a click silences a ringing timer, closes whatever is open, or opens what the pill is showing
+        Grab grab = _grab;
+        double pulled = _pullBy, leant = _leanBy;
+        // a pointer that had stopped before it let go throws nothing
+        Vector pace = _time.Elapsed.TotalSeconds - _grabAt < GrabStale ? _grabPace / Math.Max(_size.Value, 0.01) : default;
+        LetGo();
+
+        if (grab == Grab.Lean)
+        {
+            // pushed to the left it goes on to the next track, to the right back to the one before: the way the
+            // covers pass. It goes on a little the way it was flicked before it swings back
+            int way = -Far(leant, pace.X, LeanSkips);
+            if (way != 0 && MediaActive)
+            {
+                Skipped(way);
+                if (way > 0) _media.Next();
+                else _media.Previous();
+                _lean.Velocity = Math.Clamp(pace.X, -ThrowMost, ThrowMost);
+            }
+            SetTargets();
+            return;
+        }
+        // not pulled far enough: it springs back shut
+        if (grab == Grab.Pull && Far(pulled, pace.Y, PullOpens) <= 0)
+        {
+            SetTargets();
+            return;
+        }
+
+        // a click silences a ringing timer, closes whatever is open, or opens what the pill is showing; so does a pull
         if (_ringing || _panel != Panel.None) Open(Panel.None);
         else Open(MediaActive || !_timer.Active ? Panel.Player : Panel.Timer);
         UpdateView();
+        if (grab == Grab.Pull)
+        {
+            // thrown open: it goes on at the pace the pointer let go at
+            double thrown = Math.Clamp(pace.Y, 0, ThrowMost);
+            _h.Velocity = Math.Max(_h.Velocity, thrown);
+            _w.Velocity = Math.Max(_w.Velocity, thrown / 2);
+            // the pointer may have been taken further than the island opens: time to come back to it
+            _collapseTimer.Interval = BubbleLinger;
+            _collapseTimer.Start();
+        }
+        SetTargets();
+    }
+
+    /// <summary>
+    /// Which way a drag has gone far enough to count: 1, -1, or 0 when it has not. Far enough is <paramref name="enough"/>
+    /// px, unless it was already on its way back, or a flick: a short way at a good pace.
+    /// </summary>
+    static int Far(double by, double pace, double enough)
+    {
+        int way = Math.Sign(by);
+        double far = Math.Abs(by), on = pace * way; // the pace it keeps on that way at
+        if (far >= FlickLeast && on >= FlickPace) return way;
+        return far >= enough && on > -FlickPace / 2 ? way : 0;
+    }
+
+    /// <summary>The pointer lets go of the pill, or is taken from it: the pill's shape is its own again, to spring back or to open.</summary>
+    void LetGo()
+    {
+        if (_grab == Grab.None) return;
+        bool taken = _grab != Grab.Held;
+        // first, so that losing the pointer below is no news
+        _grab = Grab.None;
+        _pullBy = _leanBy = 0;
+        if (taken) Grip(false);
+        Island.ReleaseMouseCapture();
+    }
+
+    /// <summary>Ends a drag cut short by another button, or by whatever took the pointer away: nothing comes of it, not even a click.</summary>
+    void Abandon()
+    {
+        if (_grab == Grab.None) return;
+        LetGo();
+        _pressed = false;
+    }
+
+    void Island_LostMouseCapture(object sender, MouseEventArgs e)
+    {
+        if (_grab == Grab.None) return;
+        Abandon();
         SetTargets();
     }
 
     void Root_MouseRightButtonUp(object sender, MouseButtonEventArgs e)
     {
+        Abandon();
         // from the settings that is a step back, to the menu they belong to
         Open(_panel == Panel.Menu ? Panel.None : Panel.Menu);
         UpdateSwitches(false);
@@ -1958,6 +2224,7 @@ public partial class MainWindow : Window
     {
         if (e.ChangedButton != MouseButton.Middle) return;
         e.Handled = true;
+        Abandon();
         Open(Panel.None);
         _away = true;
         _awayTimer.Stop();
@@ -1984,7 +2251,6 @@ public partial class MainWindow : Window
         else if (_current == View.TimerSet) SetMinutes(_minutes + step);
         else if (_current == View.Look && SizeRow.IsMouseOver) SetScale(Step(Scales, Settings.Scale, step, false));
         else if (_current == View.Look && GapRow.IsMouseOver) SetGap(Step(Gaps, Settings.Gap, step, false));
-        else if (_current == View.Look && PulseRow.IsMouseOver) SetPulse(Math.Clamp(Settings.Pulse + step, 0, Pulses.Length - 1));
         // more files than fit: down goes on to the later ones
         else if (_current == View.Shelf && ShelfOverflow > 0) ScrollShelf(-step);
         // over the open player it is the music that gets louder, not everything else along with it
@@ -2345,7 +2611,6 @@ public partial class MainWindow : Window
 
     void Size_Click(object sender, RoutedEventArgs e) => SetScale(Step(Scales, Settings.Scale, 1, true));
     void Gap_Click(object sender, RoutedEventArgs e) => SetGap(Step(Gaps, Settings.Gap, 1, true));
-    void Pulse_Click(object sender, RoutedEventArgs e) => SetPulse((Settings.Pulse + 1) % Pulses.Length);
 
     void SetScale(int percent)
     {
@@ -2363,11 +2628,9 @@ public partial class MainWindow : Window
         ApplyLook();
     }
 
-    // the edge takes it up on the next frame of the music
-    void SetPulse(int level)
+    void Dots_Click(object sender, RoutedEventArgs e)
     {
-        if (level == Settings.Pulse) return;
-        Settings.Pulse = level;
+        Eq.Dots = Settings.Dots = !Settings.Dots;
         UpdateLook();
     }
 
@@ -2385,7 +2648,7 @@ public partial class MainWindow : Window
     {
         SizeText.Text = Settings.Scale + "%";
         GapText.Text = Settings.Gap + " px";
-        PulseText.Text = Pulses[Settings.Pulse];
+        DotsText.Text = Settings.Dots ? "Матрица" : "Полоски";
         foreach (RadioButton dot in AccentStrip.Children)
         {
             Color? colour = dot.Background is SolidColorBrush own ? own.Color : null;

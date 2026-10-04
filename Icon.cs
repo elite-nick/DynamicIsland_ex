@@ -7,7 +7,7 @@ namespace DynamicIsland;
 public enum Glyph
 {
     Mute, Quiet, Mid, Loud, Headphones, Speaker, Vpn, Offline, Wifi, Wired, Bell, Note, Battery, Minus, Plus, Chevron, Back,
-    Clock, Gear, Lines, Sparkle, Rim, Expand, Windows, Power, Look, Size, Gap, Drop, Moon, Tray, Cross, Pulse, Bolt, VpnOff,
+    Clock, Gear, Lines, Sparkle, Rim, Expand, Windows, Power, Look, Size, Gap, Drop, Moon, Tray, Cross, Bolt, VpnOff, Bars,
 }
 
 /// <summary>
@@ -116,10 +116,9 @@ public sealed class Icon : FrameworkElement
         [Glyph.Size] = new(Lines: "M6,18 L18,6 M12,5 H19 V12 M12,19 H5 V12", Line: 2.2),
         // the edge of the screen and the island under it
         [Glyph.Gap] = new(Lines: "M4,4.6 H20 M8.5,12.6 H15.5 A3.2,3.2 0 0 1 15.5,19 H8.5 A3.2,3.2 0 0 1 8.5,12.6 Z", Line: 2.2),
+        [Glyph.Bars] = new(Lines: "M5.5,10 V14 M12,5.5 V18.5 M18.5,8.5 V15.5", Line: 2.6),
         [Glyph.Drop] = new("M12,4 C9.6,7.4 6.2,11 6.2,14.4 A5.8,5.8 0 0 0 17.8,14.4 C17.8,11 14.4,7.4 12,4 Z"),
         [Glyph.Bolt] = new("M13.6,3 L6.2,13.3 H11.3 L10.4,21 L17.8,10.7 H12.7 Z"),
-        // a level line with one beat in it
-        [Glyph.Pulse] = new(Lines: "M3,12.5 H7.6 L10.2,6 L13.8,18.5 L16.2,12.5 H21", Line: 2.2),
 
         // "Do not disturb": a disc with a smaller one bitten out of its top right
         [Glyph.Moon] = new("M10.58,4.44 A8.2,8.2 0 1 0 19.52,13.74 A6.8,6.8 0 0 1 10.58,4.44 Z"),

@@ -7,7 +7,7 @@ namespace DynamicIsland;
 /// <summary>
 /// The island's black body. The pill and the bubble that splits off it are one piece of liquid: while their
 /// round ends are close a neck joins them, thinning as they part until it snaps. Its light edge is also how the
-/// island says things without words: it glows on the bass of the music, and flashes while an alarm rings.
+/// island says things without words: it takes the colour of the music, and flashes while an alarm rings.
 /// </summary>
 public sealed class Goo : FrameworkElement
 {
@@ -28,7 +28,7 @@ public sealed class Goo : FrameworkElement
     static readonly (double At, double Level)[] Flash = [(0, 0), (0.04, 1), (0.13, 0.3), (0.19, 0.9), (0.5, 0), (1, 0)];
 
     readonly SolidColorBrush _rim = new(Plain);
-    readonly Light _beat = new(), _flash = new(); // the edge lit: by the bass of the music, by an alarm
+    readonly Light _flash = new(); // the edge lit by an alarm
     readonly Pen _edge;
 
     Rect _pill = Rect.Empty, _bubble = Rect.Empty;
@@ -40,20 +40,8 @@ public sealed class Goo : FrameworkElement
     public void Tint(Color? colour, Duration time)
     {
         Color to = colour is { } c ? Color.FromArgb(Tinted, c.R, c.G, c.B) : Plain;
-        // the brushes are already in the picture, so nothing is drawn again
+        // the brush is already in the picture, so nothing is drawn again
         _rim.BeginAnimation(SolidColorBrush.ColorProperty, new ColorAnimation(to, time));
-        // the beat lights the edge in the colour it has
-        var lit = new ColorAnimation(colour ?? Colors.White, time);
-        _beat.Edge.BeginAnimation(SolidColorBrush.ColorProperty, lit);
-        _beat.Mist.BeginAnimation(SolidColorBrush.ColorProperty, lit);
-    }
-
-    /// <summary>Lights the edge up by this much, 0 → 1: asked on every frame of the music, with the weight of its bass.</summary>
-    public void Beat(double level)
-    {
-        level = Math.Clamp(level, 0, 1);
-        _beat.Edge.Opacity = level;
-        _beat.Mist.Opacity = level * Haze;
     }
 
     /// <summary>Raises the alarm: the edge flashes at the start of every <paramref name="round"/>, until it is told to <see cref="Still"/>.</summary>
@@ -125,12 +113,10 @@ public sealed class Goo : FrameworkElement
 
         dc.PushClip(outside);
         dc.DrawGeometry(null, _edge, body);
-        dc.DrawGeometry(null, _beat.Line, body);
         dc.DrawGeometry(null, _flash.Line, body);
         dc.Pop();
         dc.DrawGeometry(Brushes.Black, null, body);
         // the haze of a lit edge lies on the black as much as around it: over a light window that is where it shows
-        foreach (Pen mist in _beat.Mists) dc.DrawGeometry(null, mist, body);
         foreach (Pen mist in _flash.Mists) dc.DrawGeometry(null, mist, body);
     }
 
