@@ -84,6 +84,8 @@ public partial class MainWindow : Window
     const int HeadsetEvery = 300; // ticks between looks at the headphones' charge: it moves slowly
     const int HeadsetLow = 20, HeadsetCritical = 10; // percent: passing each on the way down is worth a warning
     const int TimerLast = 10; // seconds: the end of a countdown turns red and beats
+    const double BellHangs = -8; // px from the middle of the bell up to where it hangs, and swings from
+    const double NoticeWash = 0.2; // how much of the icon's colour the square behind it takes
     const double SkipMemory = 3; // seconds a press of "previous" stays the reason for the cover that comes next
     const double VolumeTrack = 162;
     const double VolumePush = 7; // how far the bar gives when the volume is asked past an end of it
@@ -112,6 +114,9 @@ public partial class MainWindow : Window
     static readonly TimeSpan AwayFor = TimeSpan.FromSeconds(5); // a middle click sends the island off screen for this long
     static readonly TimeSpan PushFor = TimeSpan.FromMilliseconds(140); // the bar stays stretched this long after the last push
     static readonly TimeSpan DropLinger = TimeSpan.FromMilliseconds(150);
+    static readonly TimeSpan NoticeWait = TimeSpan.FromMilliseconds(160); // for a notice to come into sight before its icon makes its entrance
+    static readonly TimeSpan RingRound = TimeSpan.FromSeconds(1.5); // a finished timer rings in rounds this long...
+    static readonly TimeSpan RingSwing = TimeSpan.FromSeconds(0.8); // ...the bell swinging through the first part of each
     static readonly CultureInfo Ru = new("ru-RU");
 
     readonly Dictionary<View, FrameworkElement> _views;
@@ -249,7 +254,7 @@ public partial class MainWindow : Window
         Eq.Fill = _accent;
 
         _timerTint = new SolidColorBrush(Tone("Orange"));
-        TimerRing.Stroke = BubbleRing.Stroke = _timerTint;
+        TimerRing.Stroke = BubbleRing.Stroke = BigRing.Stroke = _timerTint;
         TimerText.Foreground = BubbleText.Foreground = BigTimer.Foreground = BigTimerLabel.Foreground = MenuTimer.Foreground = _timerTint;
         TimerDisc.Fill = _timerTint;
         TimerPauseIcon.Fill = TimerPauseIcon.Stroke = TimerPlayIcon.Fill = TimerPlayIcon.Stroke = _timerTint;
@@ -257,7 +262,7 @@ public partial class MainWindow : Window
         TimerRing.RenderTransform = BubbleRing.RenderTransform = _beat;
         // the digits are set against the right edge, so that is where they swell from
         BigTimer.RenderTransformOrigin = new Point(1, 0.5);
-        BigTimer.RenderTransform = _beatBig;
+        BigTimer.RenderTransform = BigRing.RenderTransform = _beatBig;
         foreach (FrameworkElement icon in new FrameworkElement[] { PlayIcon, PauseIcon, TimerPlayIcon, TimerPauseIcon })
         {
             icon.RenderTransformOrigin = new Point(0.5, 0.5);
@@ -856,6 +861,18 @@ public partial class MainWindow : Window
         return late;
     }
 
+    /// <summary>A swing from side to side through the given values, one after another over the run, after a wait at rest.</summary>
+    static DoubleAnimationUsingKeyFrames Sway(TimeSpan wait, TimeSpan run, params double[] sides)
+    {
+        var sway = new DoubleAnimationUsingKeyFrames { Duration = wait + run };
+        sway.KeyFrames.Add(new DiscreteDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.Zero)));
+        sway.KeyFrames.Add(new DiscreteDoubleKeyFrame(0, KeyTime.FromTimeSpan(wait)));
+        for (int i = 0; i < sides.Length; i++)
+            sway.KeyFrames.Add(new EasingDoubleKeyFrame(sides[i], KeyTime.FromTimeSpan(wait + run * ((i + 1.0) / sides.Length)),
+                new SineEase { EasingMode = EasingMode.EaseInOut }));
+        return sway;
+    }
+
     void FadeOut(FrameworkElement v)
     {
         v.IsHitTestVisible = false;
@@ -1057,19 +1074,29 @@ public partial class MainWindow : Window
         InfoBat.Text = percent + "%";
         InfoBat.Foreground = plugged ? ChargeText.Foreground : Brushes.White;
 
-        if (_powerKnown && plugged && !_lastPlugged)
-        {
-            ChargeText.Text = percent + "%";
-            ChargeFill.BeginAnimation(WidthProperty, new DoubleAnimation(0, 20 * percent / 100.0, Ms(700))
-            {
-                BeginTime = TimeSpan.FromMilliseconds(250),
-                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
-            });
-            ShowTransient(View.Charge, 3);
-            Body.Glint(Tone("Green"));
-        }
+        if (_powerKnown && plugged && !_lastPlugged) Charging(percent);
         _powerKnown = true;
         _lastPlugged = plugged;
+    }
+
+    /// <summary>The charger has been plugged in: the pill says so, the battery in it filling up to its level.</summary>
+    void Charging(int percent)
+    {
+        ChargeText.Text = percent + "%";
+        ChargeFill.BeginAnimation(WidthProperty, new DoubleAnimation(0, 20 * percent / 100.0, Ms(700))
+        {
+            BeginTime = TimeSpan.FromMilliseconds(250),
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+        });
+        ShowTransient(View.Charge, 3);
+
+        // the bolt strikes as the view comes in: it swings down into place, a little past its size and back
+        TimeSpan delay = TimeSpan.FromMilliseconds(70);
+        var ease = new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.7 };
+        var grow = new DoubleAnimation(0.3, 1, Ms(520)) { BeginTime = delay, EasingFunction = ease };
+        BoltTurn.BeginAnimation(RotateTransform.AngleProperty, new DoubleAnimation(-35, 0, Ms(520)) { BeginTime = delay, EasingFunction = ease });
+        BoltSize.BeginAnimation(ScaleTransform.ScaleXProperty, grow);
+        BoltSize.BeginAnimation(ScaleTransform.ScaleYProperty, grow);
     }
 
     /// <summary>Puts the charge of the output device (Bluetooth headphones report one) into the expanded views.</summary>
@@ -1102,10 +1129,7 @@ public partial class MainWindow : Window
         if (announce)
             Notify(icon, Brushes.White, device.Kind.Length > 0 ? device.Kind : "Аудиоустройство", name);
         else if (known && (Passed(HeadsetLow) || Passed(HeadsetCritical)))
-        {
-            Notify(icon, red, "Низкий заряд", name);
-            Body.Glint(Tone("Red"));
-        }
+            Notify(icon, red, "Низкий заряд", name, warn: true);
     }
 
     /// <summary>"Do not disturb" turned on or off: the moon comes up in the pill, and stays by the date in the expanded clock.</summary>
@@ -1135,7 +1159,9 @@ public partial class MainWindow : Window
     // ───────────────────────── notices ─────────────────────────
 
     /// <summary>One-off notice in the pill: an icon, a title and a line of detail.</summary>
-    void Notify(Glyph icon, Brush tint, string title, string text, double seconds = 3.2, bool force = false)
+    /// <param name="from">The icon this one turns out of as it comes in, when the two are made of the same pieces.</param>
+    /// <param name="warn">It is a warning: its icon shakes.</param>
+    void Notify(Glyph icon, Brush tint, string title, string text, double seconds = 3.2, bool force = false, Glyph? from = null, bool warn = false)
     {
         // nothing talks over a ringing timer
         if (_ringing && !force) return;
@@ -1143,11 +1169,43 @@ public partial class MainWindow : Window
         bool shown = _current == View.Notice;
         NoticeIcon.Kind = icon;
         NoticeIcon.Fill = tint;
+        // the square behind the icon takes a faint wash of its colour
+        if (tint is SolidColorBrush { Color: var c })
+            NoticeBack.Background = new SolidColorBrush(Color.FromArgb((byte)(c.A * NoticeWash), c.R, c.G, c.B));
         NoticeTitle.Text = title;
         NoticeText.Text = text;
         ShowTransient(View.Notice, seconds, force);
         // one notice replacing another: no view change to animate, so blur the new text in
         if (shown) FadeIn(NoticeView);
+        Enter(icon, from, warn);
+    }
+
+    /// <summary>
+    /// Each notice brings its icon in in its own way. One made of pieces comes piece by piece: the arcs of the Wi-Fi
+    /// sign one after another, the stroke through them when the network is lost, the tick of the VPN's shield drawn
+    /// or taken back. Headphones are put on, a speaker thumps, a plug goes in; a warning shakes.
+    /// </summary>
+    void Enter(Glyph icon, Glyph? from, bool warn)
+    {
+        // whatever the notice before this one had set going
+        NoticeSize.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+        NoticeSize.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+        NoticeTurn.BeginAnimation(RotateTransform.AngleProperty, null);
+        NoticeMove.BeginAnimation(TranslateTransform.YProperty, null);
+        NoticeTurn.CenterY = 0;
+
+        NoticeIcon.Play(from, NoticeWait.TotalSeconds);
+        var back = new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.8 };
+        TimeSpan run = TimeSpan.FromMilliseconds(460);
+        if (warn) NoticeTurn.BeginAnimation(RotateTransform.AngleProperty, Sway(NoticeWait, TimeSpan.FromMilliseconds(620), -15, 13, -10, 7, -3, 0));
+        else if (icon == Glyph.Headphones) NoticeMove.BeginAnimation(TranslateTransform.YProperty, Late(-9, 0, NoticeWait, run, back));
+        else if (icon == Glyph.Wired) NoticeMove.BeginAnimation(TranslateTransform.YProperty, Late(8, 0, NoticeWait, run, back));
+        else if (icon == Glyph.Speaker)
+        {
+            DoubleAnimationUsingKeyFrames thump = Late(0.6, 1, NoticeWait, run, new ElasticEase { EasingMode = EasingMode.EaseOut, Oscillations = 1, Springiness = 5 });
+            NoticeSize.BeginAnimation(ScaleTransform.ScaleXProperty, thump);
+            NoticeSize.BeginAnimation(ScaleTransform.ScaleYProperty, thump);
+        }
     }
 
     void OnNetworkChanged(NetworkService.State was, NetworkService.State now)
@@ -1159,16 +1217,16 @@ public partial class MainWindow : Window
             string[] before = was.Vpn.Split('\n', StringSplitOptions.RemoveEmptyEntries);
             string[] after = now.Vpn.Split('\n', StringSplitOptions.RemoveEmptyEntries);
             if (after.Except(before).FirstOrDefault() is { } up)
-                Notify(Glyph.Vpn, (Brush)FindResource("Green"), "VPN включён", up);
+                Notify(Glyph.Vpn, (Brush)FindResource("Green"), "VPN включён", up, from: Glyph.VpnOff);
             else if (before.Except(after).FirstOrDefault() is { } down)
-                Notify(Glyph.Vpn, (Brush)FindResource("Dim"), "VPN отключён", down);
+                Notify(Glyph.VpnOff, (Brush)FindResource("Dim"), "VPN отключён", down, from: Glyph.Vpn);
             // a tunnel going up or down also reshuffles the connection underneath: one notice is enough
             return;
         }
 
         if (now.Link == NetworkService.Link.None)
         {
-            Notify(Glyph.Offline, (Brush)FindResource("Red"), "Нет сети", "Подключение потеряно");
+            Notify(Glyph.Offline, (Brush)FindResource("Red"), "Нет сети", "Подключение потеряно", from: Glyph.Wifi);
             return;
         }
 
@@ -1233,7 +1291,10 @@ public partial class MainWindow : Window
             return;
         }
 
-        TimerRing.Progress = BubbleRing.Progress = _timer.Share;
+        double share = _timer.Share;
+        TimerRing.Progress = BubbleRing.Progress = share;
+        // the ring round the button is large enough for each tick to show as a step: there it glides from one to the next
+        BigRing.BeginAnimation(Ring.ProgressProperty, new DoubleAnimation(share, TimerBigView.IsVisible ? _tick.Interval : TimeSpan.Zero));
         // round up, so it opens on the full time and hits 0:00 as it rings
         int seconds = (int)Math.Ceiling(left.TotalSeconds);
         if (seconds == _timerShown) return;
@@ -1281,18 +1342,21 @@ public partial class MainWindow : Window
         _ringing = true;
         _alarm.Ring();
 
-        var pulse = new DoubleAnimation(1, 1.2, Ms(420))
-        {
-            AutoReverse = true,
-            RepeatBehavior = RepeatBehavior.Forever,
-            EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut }
-        };
-        NoticePulse.BeginAnimation(ScaleTransform.ScaleXProperty, pulse);
-        NoticePulse.BeginAnimation(ScaleTransform.ScaleYProperty, pulse);
         Notify(Glyph.Bell, (Brush)FindResource("Orange"), "Таймер", "Время вышло · " + total, 12, true);
-        // the light goes round the edge for as long as it rings
-        Body.Glint(Tone("Orange"), true);
+        // it rings in rounds, and everything keeps their time. As each starts the bell swings from where it hangs,
+        // the island shakes with it and the edge flashes
+        NoticeTurn.CenterY = BellHangs;
+        NoticeTurn.BeginAnimation(RotateTransform.AngleProperty, Rounds(Sway(TimeSpan.Zero, RingSwing, 24, -22, 17, -13, 8, -4, 0)));
+        RootMove.BeginAnimation(TranslateTransform.XProperty, Rounds(Sway(TimeSpan.Zero, RingSwing * 0.7, -3.5, 3.5, -3, 3, -2, 1.5, -1, 0)));
+        Body.Alarm(Tone("Orange"), RingRound);
         SetTargets();
+
+        static DoubleAnimationUsingKeyFrames Rounds(DoubleAnimationUsingKeyFrames once)
+        {
+            once.Duration = RingRound;
+            once.RepeatBehavior = RepeatBehavior.Forever;
+            return once;
+        }
     }
 
     /// <summary>Silences the alarm of a finished timer.</summary>
@@ -1302,8 +1366,9 @@ public partial class MainWindow : Window
         _ringing = false;
         _alarm.Stop();
         Body.Still();
-        NoticePulse.BeginAnimation(ScaleTransform.ScaleXProperty, null);
-        NoticePulse.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+        // the bell and the island come to rest from wherever the round had them
+        NoticeTurn.BeginAnimation(RotateTransform.AngleProperty, new DoubleAnimation(0, Ms(160)));
+        RootMove.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(0, Ms(160)));
     }
 
     void SetMinutes(int minutes)
