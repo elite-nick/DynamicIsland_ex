@@ -21,6 +21,8 @@ sealed class Updater
 
     // the page is opened many times over: the release is not asked for again sooner than this
     static readonly TimeSpan Fresh = TimeSpan.FromMinutes(30);
+    // set before the client, which names it in its requests
+    public static Version Current { get; } = Trim(Assembly.GetExecutingAssembly().GetName().Version ?? new Version(0, 0, 0));
     static readonly HttpClient Http = CreateClient();
 
     string _url = "", _digest = "";
@@ -36,8 +38,6 @@ sealed class Updater
 
     /// <summary>How much of the new exe is here, 0..100.</summary>
     public int Percent { get; private set; }
-
-    public static Version Current { get; } = Trim(Assembly.GetExecutingAssembly().GetName().Version ?? new Version(0, 0, 0));
 
     static string Exe => Environment.ProcessPath ?? "";
     static string Old => Exe + ".old";
