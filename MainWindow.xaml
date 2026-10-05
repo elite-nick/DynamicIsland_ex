@@ -153,7 +153,7 @@
         </Style>
 
         <Style x:Key="RowSwitch" TargetType="local:Toggle">
-            <Setter Property="Width" Value="38"/>
+            <Setter Property="Width" Value="46"/>
             <Setter Property="Height" Value="22"/>
             <Setter Property="HorizontalAlignment" Value="Right"/>
         </Style>
