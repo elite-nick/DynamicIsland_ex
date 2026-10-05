@@ -3,6 +3,15 @@ using Microsoft.Win32;
 
 namespace DynamicIsland;
 
+[Flags]
+enum Backdrop
+{
+    Glow = 0,
+    Matrix = 1,
+    Stars = 2,
+    MatrixAndStars = Matrix | Stars,
+}
+
 static class Settings
 {
     const string Key = @"Software\DynamicIsland";
@@ -14,6 +23,7 @@ static class Settings
     static bool _rim = ReadSwitch(nameof(Rim)), _appVolume = ReadSwitch(nameof(AppVolume));
     static bool _dots = ReadSwitch(nameof(Dots), false);
     static bool _lineBar = ReadSwitch(nameof(LineBar));
+    static Backdrop _backdrop = (Backdrop)Math.Clamp(Read(nameof(Backdrop), 0), 0, (int)Backdrop.MatrixAndStars);
     static int _scale = Math.Clamp(Read(nameof(Scale), DefaultScale), MinScale, MaxScale);
     static int _gap = Math.Clamp(Read(nameof(Gap), DefaultGap), 0, MaxGap);
     static int _accent = Read(nameof(Accent), 0);
@@ -28,6 +38,12 @@ static class Settings
     {
         get => _lineBar;
         set => Write(nameof(LineBar), _lineBar = value);
+    }
+
+    public static Backdrop Backdrop
+    {
+        get => _backdrop;
+        set => Write(nameof(Backdrop), (int)(_backdrop = value));
     }
 
     public static bool Lyrics

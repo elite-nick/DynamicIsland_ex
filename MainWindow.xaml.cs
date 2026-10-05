@@ -35,7 +35,7 @@ public partial class MainWindow : Window
         [View.TimerSet] = new(300, 190, 38),
         [View.Menu] = new(300, 248, 34),
         [View.Settings] = new(320, 374, 34),
-        [View.Look] = new(320, 288, 34),
+        [View.Look] = new(320, 328, 34),
         [View.Shelf] = new(380, 136, 34),
         [View.Update] = new(320, 150, 34),
         [View.Loading] = new(118, 34, 17),
@@ -177,6 +177,8 @@ public partial class MainWindow : Window
         Eq.Fill = _accentBrush;
         Eq.Dots = Settings.Dots;
         SeekLines.Accent = _accentBrush;
+        PlayerMatrix.Rounding = PillShapes[View.MediaBig].Radius;
+        SyncBackdrop();
         foreach (FrameworkElement icon in new FrameworkElement[] { PlayIcon, PauseIcon, TimerPlayIcon, TimerPauseIcon })
         {
             icon.RenderTransformOrigin = new Point(0.5, 0.5);

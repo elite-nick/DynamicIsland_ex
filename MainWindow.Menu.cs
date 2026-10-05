@@ -189,6 +189,13 @@ public partial class MainWindow
         SyncSeekStyle(true);
     }
 
+    void Backdrop_Click(object sender, RoutedEventArgs e)
+    {
+        Settings.Backdrop = (Backdrop)(((int)Settings.Backdrop + 1) % ((int)Backdrop.MatrixAndStars + 1));
+        RefreshLookPage();
+        SyncBackdrop();
+    }
+
     void Accent_Click(object sender, RoutedEventArgs e)
     {
         Settings.Accent = ((RadioButton)sender).Background is SolidColorBrush picked ? picked.Color : null;
@@ -203,6 +210,13 @@ public partial class MainWindow
         GapText.Text = Settings.Gap + " px";
         DotsText.Text = Settings.Dots ? "Матрица" : "Полоски";
         SeekStyleText.Text = Settings.LineBar ? "По строкам" : "Сплошная";
+        BackdropText.Text = Settings.Backdrop switch
+        {
+            Backdrop.Matrix => "Матрица",
+            Backdrop.Stars => "Звёзды",
+            Backdrop.MatrixAndStars => "Матрица и звёзды",
+            _ => "Свечение",
+        };
         foreach (RadioButton dot in AccentStrip.Children)
         {
             Color? color = dot.Background is SolidColorBrush own ? own.Color : null;

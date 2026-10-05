@@ -464,6 +464,8 @@
 
                 <Grid x:Name="MediaBigView" Width="380" Height="176" HorizontalAlignment="Center" VerticalAlignment="Top">
                     <local:Aura x:Name="Glow" Height="176" VerticalAlignment="Bottom" IsHitTestVisible="False"/>
+                    <local:StarField x:Name="PlayerStars" Height="176" VerticalAlignment="Bottom" IsHitTestVisible="False" Visibility="Collapsed"/>
+                    <local:DotMatrix x:Name="PlayerMatrix" Height="176" VerticalAlignment="Bottom" IsHitTestVisible="False" Visibility="Collapsed"/>
 
                     <Grid Height="64" Margin="20,20,22,0" VerticalAlignment="Top">
                         <StackPanel Margin="78,0,52,0" VerticalAlignment="Center">
@@ -781,7 +783,7 @@
                     </StackPanel>
                 </Grid>
 
-                <Grid x:Name="LookView" Width="320" Height="288" HorizontalAlignment="Center" VerticalAlignment="Top">
+                <Grid x:Name="LookView" Width="320" Height="328" HorizontalAlignment="Center" VerticalAlignment="Top">
                     <local:RowList Margin="10,8,10,0">
                         <Button Style="{StaticResource BackButton}" Content="ОФОРМЛЕНИЕ" Click="SettingsBack_Click"/>
                         <Button x:Name="SizeRow" Style="{StaticResource RowButton}" Click="Size_Click">
@@ -813,6 +815,14 @@
                                 <local:Icon Style="{StaticResource RowIcon}" Kind="Segments"/>
                                 <TextBlock Style="{StaticResource RowLabel}" Text="Полоса трека"/>
                                 <TextBlock x:Name="SeekStyleText" Foreground="{StaticResource Dim}"
+                                           HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                            </Grid>
+                        </Button>
+                        <Button Style="{StaticResource RowButton}" Click="Backdrop_Click">
+                            <Grid>
+                                <local:Icon Style="{StaticResource RowIcon}" Kind="Stars"/>
+                                <TextBlock Style="{StaticResource RowLabel}" Text="Фон плеера"/>
+                                <TextBlock x:Name="BackdropText" Foreground="{StaticResource Dim}"
                                            HorizontalAlignment="Right" VerticalAlignment="Center"/>
                             </Grid>
                         </Button>
