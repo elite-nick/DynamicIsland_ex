@@ -16,6 +16,7 @@ public sealed class DotMatrix : FrameworkElement
     readonly record struct Column(double X, double Share, int LowestRow);
 
     readonly SolidColorBrush[] _brushes = new SolidColorBrush[ColorSteps];
+    readonly Shades[] _shades = new Shades[ColorSteps];
     SpectrumLevels? _levels;
     Column[] _columns = [];
     Geometry? _unlit;
@@ -24,7 +25,12 @@ public sealed class DotMatrix : FrameworkElement
 
     public DotMatrix()
     {
-        for (int step = 0; step < ColorSteps; step++) _brushes[step] = new SolidColorBrush(Colors.White);
+        for (int step = 0; step < ColorSteps; step++)
+        {
+            _brushes[step] = new SolidColorBrush(Colors.White);
+            _shades[step] = new Shades();
+        }
+        _brushes[0].Changed += (_, _) => InvalidateVisual();
     }
 
     public double Rounding
@@ -58,28 +64,21 @@ public sealed class DotMatrix : FrameworkElement
         double w = ActualWidth, h = ActualHeight;
         if (w <= 0 || h <= 0) return;
 
-        dc.PushOpacity(UnlitOpacity);
-        dc.DrawGeometry(Brushes.White, null, LayOut(w, h));
-        dc.Pop();
+        dc.DrawGeometry(Shades.White(UnlitOpacity), null, LayOut(w, h));
         if (_levels == null) return;
 
         foreach (Column column in _columns)
         {
             double lit = _levels.At(column.Share) * Rows * LitReach;
-            Brush color = _brushes[(int)Math.Round(column.Share * (ColorSteps - 1))];
+            int step = (int)Math.Round(column.Share * (ColorSteps - 1));
+            Color color = _brushes[step].Color;
             for (int row = column.LowestRow; row < Rows && lit - row > Absent; row++)
             {
                 var center = new Point(column.X, h - Bottom - row * RowPitch);
                 double on = Math.Clamp(lit - row, 0, 1), head = on * (1 - Math.Clamp(lit - row - 1, 0, 1));
 
-                dc.PushOpacity(LitOpacity * on);
-                dc.DrawEllipse(color, null, center, DotRadius, DotRadius);
-                dc.Pop();
-
-                if (head <= Absent) continue;
-                dc.PushOpacity(HeadWhiteness * head);
-                dc.DrawEllipse(Brushes.White, null, center, DotRadius, DotRadius);
-                dc.Pop();
+                dc.DrawEllipse(_shades[step].Of(color, LitOpacity * on), null, center, DotRadius, DotRadius);
+                if (head > Absent) dc.DrawEllipse(Shades.White(HeadWhiteness * head), null, center, DotRadius, DotRadius);
             }
         }
     }
@@ -95,26 +94,38 @@ public sealed class DotMatrix : FrameworkElement
         Geometry outline = Squircle.Of(new Rect(0, 0, w, h), _rounding);
 
         var columns = new List<Column>();
-        var dots = new GeometryGroup();
-        for (int i = 0; i < count; i++)
+        var dots = new StreamGeometry { FillRule = FillRule.Nonzero };
+        using (StreamGeometryContext outlines = dots.Open())
         {
-            double x = left + i * ColumnPitch;
-            int lowest = Rows;
-            for (int row = Rows - 1; row >= 0; row--)
+            for (int i = 0; i < count; i++)
             {
-                var center = new Point(x, h - Bottom - row * RowPitch);
-                var room = new EllipseGeometry(center, DotRadius + EdgeClearance, DotRadius + EdgeClearance);
-                if (outline.FillContainsWithDetail(room) != IntersectionDetail.FullyContains) break;
-                dots.Children.Add(new EllipseGeometry(center, DotRadius, DotRadius));
-                lowest = row;
+                double x = left + i * ColumnPitch;
+                int lowest = Rows;
+                for (int row = Rows - 1; row >= 0; row--)
+                {
+                    var center = new Point(x, h - Bottom - row * RowPitch);
+                    var room = new EllipseGeometry(center, DotRadius + EdgeClearance, DotRadius + EdgeClearance);
+                    if (outline.FillContainsWithDetail(room) != IntersectionDetail.FullyContains) break;
+                    AddDot(outlines, center);
+                    lowest = row;
+                }
+                if (lowest < Rows) columns.Add(new Column(x, Math.Abs(i - middle) / middle, lowest));
             }
-            if (lowest < Rows) columns.Add(new Column(x, Math.Abs(i - middle) / middle, lowest));
         }
         dots.Freeze();
 
         _columns = [.. columns];
         _laidOut = size;
         return _unlit = dots;
+    }
+
+    static void AddDot(StreamGeometryContext outlines, Point center)
+    {
+        var size = new Size(DotRadius, DotRadius);
+        Point left = center - new Vector(DotRadius, 0), right = center + new Vector(DotRadius, 0);
+        outlines.BeginFigure(left, true, true);
+        outlines.ArcTo(right, size, 0, false, SweepDirection.Clockwise, true, false);
+        outlines.ArcTo(left, size, 0, false, SweepDirection.Clockwise, true, false);
     }
 
     static Color Along(IReadOnlyList<Color> colors, double share)

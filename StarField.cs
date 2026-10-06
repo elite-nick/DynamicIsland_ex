@@ -24,7 +24,9 @@ public sealed class StarField : FrameworkElement
 
     readonly record struct Star(double X, double Y, double Radius, double Glow, int Band, double Speed, double Phase);
 
-    static readonly Brush Halo = Frozen(new RadialGradientBrush(Colors.White.WithAlpha(HaloCore), Colors.White.WithAlpha(0)));
+    const int HaloLevels = 255;
+
+    static readonly Brush?[] Halos = new Brush?[HaloLevels + 1];
     static readonly Star[] Stars = Scatter();
 
     readonly Random _random = new();
@@ -108,16 +110,21 @@ public sealed class StarField : FrameworkElement
             double glow = Math.Min(star.Glow * (1 - TwinkleDepth * _activity * twinkle) + StarLevelGain * flare, 1);
             var center = new Point(StarMargin + width * star.X, StarTop + height * star.Y);
 
-            dc.PushOpacity(glow);
-            dc.DrawEllipse(Brushes.White, null, center, star.Radius, star.Radius);
-            dc.Pop();
+            dc.DrawEllipse(Shades.White(glow), null, center, star.Radius, star.Radius);
 
             double halo = (glow - HaloFrom) / (1 - HaloFrom);
             if (halo <= 0) continue;
-            dc.PushOpacity(halo * HaloGain);
-            dc.DrawEllipse(Halo, null, center, star.Radius * HaloReach, star.Radius * HaloReach);
-            dc.Pop();
+            dc.DrawEllipse(Halo(halo * HaloGain), null, center, star.Radius * HaloReach, star.Radius * HaloReach);
         }
+    }
+
+    static Brush Halo(double opacity)
+    {
+        int level = (int)Math.Round(Math.Clamp(opacity, 0, 1) * HaloLevels);
+        return Halos[level] ??= Shades.Frozen(new RadialGradientBrush(Colors.White.WithAlpha(HaloCore), Colors.White.WithAlpha(0))
+        {
+            Opacity = (double)level / HaloLevels,
+        });
     }
 
     void DrawMeteor(DrawingContext dc)
@@ -135,9 +142,7 @@ public sealed class StarField : FrameworkElement
         pen.Freeze();
         dc.DrawLine(pen, tail, head);
 
-        dc.PushOpacity(fade);
-        dc.DrawEllipse(Brushes.White, null, head, MeteorHeadRadius, MeteorHeadRadius);
-        dc.Pop();
+        dc.DrawEllipse(Shades.White(fade), null, head, MeteorHeadRadius, MeteorHeadRadius);
     }
 
     static Star[] Scatter()
@@ -157,11 +162,5 @@ public sealed class StarField : FrameworkElement
                 2 * Math.PI * random.NextDouble());
         }
         return stars;
-    }
-
-    static T Frozen<T>(T freezable) where T : Freezable
-    {
-        freezable.Freeze();
-        return freezable;
     }
 }
