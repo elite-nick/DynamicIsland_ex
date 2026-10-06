@@ -12,6 +12,13 @@ enum Backdrop
     MatrixAndStars = Matrix | Stars,
 }
 
+enum LyricChange
+{
+    Smooth,
+    Wave,
+    Drum,
+}
+
 static class Settings
 {
     const string Key = @"Software\DynamicIsland";
@@ -24,6 +31,7 @@ static class Settings
     static bool _dots = ReadSwitch(nameof(Dots), false);
     static bool _lineBar = ReadSwitch(nameof(LineBar));
     static Backdrop _backdrop = (Backdrop)Math.Clamp(Read(nameof(Backdrop), 0), 0, (int)Backdrop.MatrixAndStars);
+    static LyricChange _lyricChange = (LyricChange)Math.Clamp(Read(nameof(LyricChange), (int)LyricChange.Wave), 0, (int)LyricChange.Drum);
     static int _scale = Math.Clamp(Read(nameof(Scale), DefaultScale), MinScale, MaxScale);
     static int _gap = Math.Clamp(Read(nameof(Gap), DefaultGap), 0, MaxGap);
     static int _accent = Read(nameof(Accent), 0);
@@ -44,6 +52,12 @@ static class Settings
     {
         get => _backdrop;
         set => Write(nameof(Backdrop), (int)(_backdrop = value));
+    }
+
+    public static LyricChange LyricChange
+    {
+        get => _lyricChange;
+        set => Write(nameof(LyricChange), (int)(_lyricChange = value));
     }
 
     public static bool Lyrics

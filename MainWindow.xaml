@@ -338,18 +338,8 @@
                                 <GradientStop Color="#00000000" Offset="1"/>
                             </LinearGradientBrush>
                         </Canvas.OpacityMask>
-                        <TextBlock x:Name="LyricA" FontSize="12" FontWeight="Medium" Opacity="0"
-                                   TextOptions.TextHintingMode="Animated">
-                            <TextBlock.RenderTransform>
-                                <TranslateTransform/>
-                            </TextBlock.RenderTransform>
-                        </TextBlock>
-                        <TextBlock x:Name="LyricB" FontSize="12" FontWeight="Medium" Opacity="0"
-                                   TextOptions.TextHintingMode="Animated">
-                            <TextBlock.RenderTransform>
-                                <TranslateTransform/>
-                            </TextBlock.RenderTransform>
-                        </TextBlock>
+                        <local:CompactLyric x:Name="LyricA" Opacity="0"/>
+                        <local:CompactLyric x:Name="LyricB" Opacity="0"/>
                     </Canvas>
                 </Grid>
 
@@ -783,7 +773,7 @@
                     </StackPanel>
                 </Grid>
 
-                <Grid x:Name="LookView" Width="320" Height="328" HorizontalAlignment="Center" VerticalAlignment="Top">
+                <Grid x:Name="LookView" Width="320" Height="368" HorizontalAlignment="Center" VerticalAlignment="Top">
                     <local:RowList Margin="10,8,10,0">
                         <Button Style="{StaticResource BackButton}" Content="ОФОРМЛЕНИЕ" Click="SettingsBack_Click"/>
                         <Button x:Name="SizeRow" Style="{StaticResource RowButton}" Click="Size_Click">
@@ -823,6 +813,14 @@
                                 <local:Icon Style="{StaticResource RowIcon}" Kind="Stars"/>
                                 <TextBlock Style="{StaticResource RowLabel}" Text="Фон плеера"/>
                                 <TextBlock x:Name="BackdropText" Foreground="{StaticResource Dim}"
+                                           HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                            </Grid>
+                        </Button>
+                        <Button Style="{StaticResource RowButton}" Click="LyricChange_Click">
+                            <Grid>
+                                <local:Icon Style="{StaticResource RowIcon}" Kind="Lines"/>
+                                <TextBlock Style="{StaticResource RowLabel}" Text="Смена строки"/>
+                                <TextBlock x:Name="LyricChangeText" Foreground="{StaticResource Dim}"
                                            HorizontalAlignment="Right" VerticalAlignment="Center"/>
                             </Grid>
                         </Button>

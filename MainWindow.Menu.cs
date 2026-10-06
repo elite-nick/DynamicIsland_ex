@@ -196,6 +196,12 @@ public partial class MainWindow
         SyncBackdrop();
     }
 
+    void LyricChange_Click(object sender, RoutedEventArgs e)
+    {
+        Settings.LyricChange = (LyricChange)(((int)Settings.LyricChange + 1) % ((int)LyricChange.Drum + 1));
+        RefreshLookPage();
+    }
+
     void Accent_Click(object sender, RoutedEventArgs e)
     {
         Settings.Accent = ((RadioButton)sender).Background is SolidColorBrush picked ? picked.Color : null;
@@ -216,6 +222,12 @@ public partial class MainWindow
             Backdrop.Stars => "Звёзды",
             Backdrop.MatrixAndStars => "Матрица и звёзды",
             _ => "Свечение",
+        };
+        LyricChangeText.Text = Settings.LyricChange switch
+        {
+            LyricChange.Wave => "Волна по буквам",
+            LyricChange.Drum => "Барабан по словам",
+            _ => "Плавно",
         };
         foreach (RadioButton dot in AccentStrip.Children)
         {
