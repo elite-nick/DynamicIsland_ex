@@ -2,7 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:DynamicIsland"
-        Title="Dynamic Island" Width="680" Height="440"
+        Title="Dynamic Island" Width="680" Height="470"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
         ShowInTaskbar="False" ShowActivated="False" Topmost="True" ResizeMode="NoResize"
         Focusable="False" UseLayoutRounding="True"
@@ -285,9 +285,108 @@
             </Setter>
         </Style>
 
+        <Style x:Key="RowSlider" TargetType="local:Scrubber">
+            <Setter Property="Width" Value="118"/>
+            <Setter Property="Height" Value="22"/>
+            <Setter Property="Margin" Value="0,0,48,0"/>
+            <Setter Property="HorizontalAlignment" Value="Right"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+
+        <Style x:Key="RowSegments" TargetType="local:Segments">
+            <Setter Property="Height" Value="26"/>
+            <Setter Property="HorizontalAlignment" Value="Right"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+
+        <Style x:Key="Tile" TargetType="RadioButton">
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Margin" Value="3,0"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Foreground" Value="{StaticResource Dim}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Grid Background="Transparent" RenderTransformOrigin="0.5,0.5">
+                            <Grid.RenderTransform>
+                                <ScaleTransform x:Name="Squish"/>
+                            </Grid.RenderTransform>
+                            <Border x:Name="Plate" CornerRadius="11" Background="White" Opacity="0.08"/>
+                            <ContentPresenter Margin="3,3,3,21"/>
+                            <TextBlock Text="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}"
+                                       HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,5"/>
+                            <Border x:Name="Ring" CornerRadius="11" BorderBrush="White" BorderThickness="1.5" Opacity="0"/>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter Property="Foreground" Value="White"/>
+                                <Trigger.EnterActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="Ring" Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.15"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.EnterActions>
+                                <Trigger.ExitActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="Ring" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.25"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.ExitActions>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Trigger.EnterActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="Plate" Storyboard.TargetProperty="Opacity" To="0.15" Duration="0:0:0.12"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.EnterActions>
+                                <Trigger.ExitActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="Plate" Storyboard.TargetProperty="Opacity" To="0.08" Duration="0:0:0.3"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.ExitActions>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Trigger.EnterActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="Squish" Storyboard.TargetProperty="ScaleX" To="0.94" Duration="0:0:0.08"/>
+                                            <DoubleAnimation Storyboard.TargetName="Squish" Storyboard.TargetProperty="ScaleY" To="0.94" Duration="0:0:0.08"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.EnterActions>
+                                <Trigger.ExitActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="Squish" Storyboard.TargetProperty="ScaleX" To="1" Duration="0:0:0.45">
+                                                <DoubleAnimation.EasingFunction>
+                                                    <ElasticEase Oscillations="1" Springiness="5"/>
+                                                </DoubleAnimation.EasingFunction>
+                                            </DoubleAnimation>
+                                            <DoubleAnimation Storyboard.TargetName="Squish" Storyboard.TargetProperty="ScaleY" To="1" Duration="0:0:0.45">
+                                                <DoubleAnimation.EasingFunction>
+                                                    <ElasticEase Oscillations="1" Springiness="5"/>
+                                                </DoubleAnimation.EasingFunction>
+                                            </DoubleAnimation>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.ExitActions>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
     </Window.Resources>
 
-    <Grid x:Name="Root" Width="620" Height="410" Opacity="0"
+    <Grid x:Name="Root" Width="620" Height="440" Opacity="0"
           HorizontalAlignment="Center" VerticalAlignment="Top" RenderTransformOrigin="0.5,0"
           MouseLeftButtonDown="Root_MouseLeftButtonDown" MouseLeftButtonUp="Root_MouseLeftButtonUp"
           MouseMove="Root_MouseMove"
@@ -773,21 +872,25 @@
                     </StackPanel>
                 </Grid>
 
-                <Grid x:Name="LookView" Width="320" Height="368" HorizontalAlignment="Center" VerticalAlignment="Top">
+                <Grid x:Name="LookView" Width="352" Height="368" HorizontalAlignment="Center" VerticalAlignment="Top">
                     <local:RowList Margin="10,8,10,0">
                         <Button Style="{StaticResource BackButton}" Content="ОФОРМЛЕНИЕ" Click="SettingsBack_Click"/>
-                        <Button x:Name="SizeRow" Style="{StaticResource RowButton}" Click="Size_Click">
+                        <Button x:Name="SizeRow" Style="{StaticResource RowButton}">
                             <Grid>
                                 <local:Icon Style="{StaticResource RowIcon}" Kind="Size"/>
                                 <TextBlock Style="{StaticResource RowLabel}" Text="Размер"/>
+                                <local:Scrubber x:Name="SizeSlider" Style="{StaticResource RowSlider}"
+                                                Minimum="85" Maximum="130" Step="5" Changed="SizeSlider_Changed"/>
                                 <local:Digits x:Name="SizeText" Foreground="{StaticResource Dim}"
                                               HorizontalAlignment="Right" VerticalAlignment="Center"/>
                             </Grid>
                         </Button>
-                        <Button x:Name="GapRow" Style="{StaticResource RowButton}" Click="Gap_Click">
+                        <Button x:Name="GapRow" Style="{StaticResource RowButton}">
                             <Grid>
                                 <local:Icon Style="{StaticResource RowIcon}" Kind="Gap"/>
                                 <TextBlock Style="{StaticResource RowLabel}" Text="Отступ от края"/>
+                                <local:Scrubber x:Name="GapSlider" Style="{StaticResource RowSlider}"
+                                                Minimum="0" Maximum="24" Step="2" Changed="GapSlider_Changed"/>
                                 <local:Digits x:Name="GapText" Foreground="{StaticResource Dim}"
                                               HorizontalAlignment="Right" VerticalAlignment="Center"/>
                             </Grid>
@@ -796,34 +899,77 @@
                             <Grid>
                                 <local:Icon Style="{StaticResource RowIcon}" Kind="Bars"/>
                                 <TextBlock Style="{StaticResource RowLabel}" Text="Эквалайзер"/>
-                                <TextBlock x:Name="DotsText" Foreground="{StaticResource Dim}"
-                                           HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                <local:Segments x:Name="DotsSegments" Style="{StaticResource RowSegments}" Labels="Полоски|Матрица"/>
                             </Grid>
                         </Button>
                         <Button Style="{StaticResource RowButton}" Click="SeekStyle_Click">
                             <Grid>
                                 <local:Icon Style="{StaticResource RowIcon}" Kind="Segments"/>
                                 <TextBlock Style="{StaticResource RowLabel}" Text="Полоса трека"/>
-                                <TextBlock x:Name="SeekStyleText" Foreground="{StaticResource Dim}"
-                                           HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                <local:Segments x:Name="SeekStyleSegments" Style="{StaticResource RowSegments}" Labels="Сплошная|По строкам"/>
                             </Grid>
                         </Button>
-                        <Button Style="{StaticResource RowButton}" Click="Backdrop_Click">
+                        <Button Style="{StaticResource RowButton}" Click="BackdropRow_Click">
                             <Grid>
                                 <local:Icon Style="{StaticResource RowIcon}" Kind="Stars"/>
                                 <TextBlock Style="{StaticResource RowLabel}" Text="Фон плеера"/>
-                                <TextBlock x:Name="BackdropText" Foreground="{StaticResource Dim}"
-                                           HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                    <TextBlock x:Name="BackdropText" Foreground="{StaticResource Dim}" VerticalAlignment="Center"/>
+                                    <local:Icon x:Name="BackdropChevron" Style="{StaticResource RowChevron}" Margin="8,1,0,0"
+                                                RenderTransformOrigin="0.5,0.5">
+                                        <local:Icon.RenderTransform>
+                                            <RotateTransform/>
+                                        </local:Icon.RenderTransform>
+                                    </local:Icon>
+                                </StackPanel>
                             </Grid>
                         </Button>
-                        <Button Style="{StaticResource RowButton}" Click="LyricChange_Click">
+                        <Border x:Name="BackdropTiles" Height="0" Visibility="Collapsed" ClipToBounds="True"
+                                SizeChanged="LookTiles_SizeChanged">
+                            <UniformGrid x:Name="BackdropStrip" Rows="1" Height="64" Margin="6,2,6,0" VerticalAlignment="Top" Opacity="0">
+                                <RadioButton Style="{StaticResource Tile}" Tag="Свечение" Click="BackdropTile_Click">
+                                    <local:BackdropPreview Kind="Glow"/>
+                                </RadioButton>
+                                <RadioButton Style="{StaticResource Tile}" Tag="Матрица" Click="BackdropTile_Click">
+                                    <local:BackdropPreview Kind="Matrix"/>
+                                </RadioButton>
+                                <RadioButton Style="{StaticResource Tile}" Tag="Звёзды" Click="BackdropTile_Click">
+                                    <local:BackdropPreview Kind="Stars"/>
+                                </RadioButton>
+                                <RadioButton Style="{StaticResource Tile}" Tag="Вместе" Click="BackdropTile_Click">
+                                    <local:BackdropPreview Kind="MatrixAndStars"/>
+                                </RadioButton>
+                            </UniformGrid>
+                        </Border>
+                        <Button Style="{StaticResource RowButton}" Click="LyricChangeRow_Click">
                             <Grid>
                                 <local:Icon Style="{StaticResource RowIcon}" Kind="Lines"/>
                                 <TextBlock Style="{StaticResource RowLabel}" Text="Смена строки"/>
-                                <TextBlock x:Name="LyricChangeText" Foreground="{StaticResource Dim}"
-                                           HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                    <TextBlock x:Name="LyricChangeText" Foreground="{StaticResource Dim}" VerticalAlignment="Center"/>
+                                    <local:Icon x:Name="LyricChangeChevron" Style="{StaticResource RowChevron}" Margin="8,1,0,0"
+                                                RenderTransformOrigin="0.5,0.5">
+                                        <local:Icon.RenderTransform>
+                                            <RotateTransform/>
+                                        </local:Icon.RenderTransform>
+                                    </local:Icon>
+                                </StackPanel>
                             </Grid>
                         </Button>
+                        <Border x:Name="LyricChangeTiles" Height="0" Visibility="Collapsed" ClipToBounds="True"
+                                SizeChanged="LookTiles_SizeChanged">
+                            <UniformGrid x:Name="LyricChangeStrip" Rows="1" Height="64" Margin="6,2,6,0" VerticalAlignment="Top" Opacity="0">
+                                <RadioButton Style="{StaticResource Tile}" Tag="Плавно" Click="LyricChangeTile_Click">
+                                    <local:LyricPreview Change="Smooth"/>
+                                </RadioButton>
+                                <RadioButton Style="{StaticResource Tile}" Tag="Волна" Click="LyricChangeTile_Click">
+                                    <local:LyricPreview Change="Wave"/>
+                                </RadioButton>
+                                <RadioButton Style="{StaticResource Tile}" Tag="Барабан" Click="LyricChangeTile_Click">
+                                    <local:LyricPreview Change="Drum"/>
+                                </RadioButton>
+                            </UniformGrid>
+                        </Border>
                         <Grid Height="40" Margin="12,0">
                             <local:Icon Style="{StaticResource RowIcon}" Kind="Drop"/>
                             <TextBlock Style="{StaticResource RowLabel}" Text="Акцентный цвет" FontSize="13.5"/>

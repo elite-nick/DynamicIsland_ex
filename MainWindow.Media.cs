@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
@@ -140,6 +141,7 @@ public partial class MainWindow
         Glow.Tint(palette, time);
         PlayerMatrix.Tint(palette, time);
         PlayerLyricWait.Tint(palette, time);
+        foreach (RadioButton tile in BackdropStrip.Children) ((BackdropPreview)tile.Content).Tint(palette);
     }
 
     void SyncBackdrop()

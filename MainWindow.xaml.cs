@@ -35,7 +35,7 @@ public partial class MainWindow : Window
         [View.TimerSet] = new(300, 190, 38),
         [View.Menu] = new(300, 248, 34),
         [View.Settings] = new(320, 374, 34),
-        [View.Look] = new(320, 368, 34),
+        [View.Look] = new(352, LookHeight, 34),
         [View.Shelf] = new(380, 136, 34),
         [View.Update] = new(320, 150, 34),
         [View.Loading] = new(118, 34, 17),
@@ -91,8 +91,8 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        Width *= ScaleOptions[^1] / 100.0;
-        Height = Height * ScaleOptions[^1] / 100.0 + GapOptions[^1];
+        Width *= LargestScale / 100.0;
+        Height = Height * LargestScale / 100.0 + LargestGap;
 
         _dim = BrushResource("Dim");
         _orange = BrushResource("Orange");
@@ -385,6 +385,7 @@ public partial class MainWindow : Window
         View.Media => PillShapes[view] with { Width = _compactMediaWidth },
         View.MediaBig when _playerHasLyricRoom => PillShapes[view] with { Height = PlayerHeight + PlayerLyricsHeight },
         View.Update => PillShapes[view] with { Height = UpdatePage.Height },
+        View.Look => PillShapes[view] with { Height = LookView.Height },
         _ => PillShapes[view],
     };
 
