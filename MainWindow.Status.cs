@@ -32,7 +32,8 @@ public partial class MainWindow
     void UpdateClock()
     {
         DateTime now = DateTime.Now;
-        IdleClock.Text = BigClock.Text = now.ToString("HH:mm");
+		string timeFormat = Settings.ShowSeconds ? "HH:mm:ss" : "HH:mm";
+        IdleClock.Text = BigClock.Text = now.ToString(timeFormat);
         BigDate.Text = now.ToString("dddd, d MMMM", Russian);
     }
 

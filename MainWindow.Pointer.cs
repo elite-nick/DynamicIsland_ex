@@ -77,15 +77,26 @@ public partial class MainWindow
         UpdateTargets();
     }
 
-    void Root_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+	void Root_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
         if (!_pressed) return;
         _pressed = false;
-
         Grab grab = _grab;
         double pulled = _pull, leant = _leanDrag;
         Vector pace = _clock.Elapsed.TotalSeconds - _pointerAt < PointerRestSeconds ? _pointerSpeed / Math.Max(_userScale.Value, MinScale) : default;
         ReleaseGrab();
+
+        Point screenPos = PointToScreen(e.GetPosition(this));
+        var targetScreen = System.Windows.Forms.Screen.FromPoint(new System.Drawing.Point((int)screenPos.X, (int)screenPos.Y));
+        var currentScreen = System.Windows.Forms.Screen.FromHandle(new System.Windows.Interop.WindowInteropHelper(this).Handle);
+
+        if (targetScreen.DeviceName != currentScreen.DeviceName)
+        {
+            this.Left = targetScreen.Bounds.Left + (targetScreen.Bounds.Width - this.Width) / 2;
+            this.Top = targetScreen.Bounds.Top;
+            UpdateTargets();
+            return;
+        }
 
         switch (grab)
         {

@@ -235,7 +235,8 @@ public partial class MainWindow : Window
 
     async void OnLoaded(object sender, RoutedEventArgs e)
     {
-        CenterOnScreen();
+        RefreshMonitorText();
+		CenterOnScreen();
         SystemEvents.DisplaySettingsChanged += (_, _) => Dispatcher.InvokeAsync(CenterOnScreen);
         UpdateClock();
         UpdateSwitches(false);
@@ -246,7 +247,7 @@ public partial class MainWindow : Window
         PlayIntro();
         _ticker.Start();
         if (_forcedTimerSeconds > 0) StartTimer(TimeSpan.FromSeconds(_forcedTimerSeconds));
-        if (_forcedView == View.Update) _ = _updater.CheckAsync();
+        //if (_forcedView == View.Update) _ = _updater.CheckAsync();
 
         try { await _media.StartAsync(); }
         catch (Exception ex) { App.Log(ex); }
@@ -254,10 +255,31 @@ public partial class MainWindow : Window
         catch (Exception ex) { App.Log(ex); }
     }
 
-    void CenterOnScreen()
+	void CenterOnScreen()
     {
-        Left = (SystemParameters.PrimaryScreenWidth - Width) / 2;
-        Top = 0;
+        try
+        {
+            var screens = System.Windows.Forms.Screen.AllScreens;
+            System.Windows.Forms.Screen targetScreen = screens.FirstOrDefault(s => s.Primary) ?? screens[0];
+
+            if (Settings.TargetMonitor != "All" && !string.IsNullOrEmpty(Settings.TargetMonitor))
+            {
+                var specificScreen = screens.FirstOrDefault(s => s.DeviceName == Settings.TargetMonitor);
+                if (specificScreen != null) targetScreen = specificScreen;
+            }
+
+            var dpi = VisualTreeHelper.GetDpi(this);
+            double dpiX = dpi.DpiScaleX > 0 ? dpi.DpiScaleX : 1.0;
+            double dpiY = dpi.DpiScaleY > 0 ? dpi.DpiScaleY : 1.0;
+
+            Left = (targetScreen.Bounds.Left / dpiX) + ((targetScreen.Bounds.Width / dpiX) - Width) / 2;
+            Top = targetScreen.Bounds.Top / dpiY; 
+        }
+        catch (Exception ex)
+        {
+            Left = (SystemParameters.PrimaryScreenWidth - Width) / 2;
+            Top = 0;
+        }
     }
 
     void PlayIntro()

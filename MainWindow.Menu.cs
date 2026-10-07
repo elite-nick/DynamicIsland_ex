@@ -31,7 +31,48 @@ public partial class MainWindow
     void ShowPanelAndCheckUpdate(Panel panel)
     {
         ShowPanel(panel);
-        _ = _updater.CheckAsync();
+        //_ = _updater.CheckAsync();
+    }
+
+	public void RefreshMonitorText()
+    {
+        var screens = System.Windows.Forms.Screen.AllScreens;
+        MonitorRow.Visibility = screens.Length > 1 ? Visibility.Visible : Visibility.Collapsed;
+
+        if (Settings.TargetMonitor == "All") 
+            MonitorText.Text = "Все экраны";
+        else if (string.IsNullOrEmpty(Settings.TargetMonitor))
+            MonitorText.Text = "Основной";
+        else 
+        {
+            var screen = screens.FirstOrDefault(s => s.DeviceName == Settings.TargetMonitor);
+            MonitorText.Text = screen != null ? screen.DeviceName.Replace(@"\\.\", "") : "Основной";
+        }
+    }
+
+    void MonitorRow_Click(object sender, RoutedEventArgs e)
+    {
+        var screens = System.Windows.Forms.Screen.AllScreens;
+        if (screens.Length <= 1) return;
+
+        var options = new List<string> { "" }; 
+        options.AddRange(screens.Where(s => !s.Primary).Select(s => s.DeviceName));
+        options.Add("All");
+
+        int currentIndex = options.IndexOf(Settings.TargetMonitor);
+        if (currentIndex < 0) currentIndex = 0;
+
+        int nextIndex = (currentIndex + 1) % options.Count;
+        Settings.TargetMonitor = options[nextIndex];
+        
+        RefreshMonitorText();
+        CenterOnScreen(); 
+    }
+	
+	void Pulse_Click(object sender, RoutedEventArgs e) 
+    {
+        Settings.Pulse = (Settings.Pulse + 1) % Pulses.Length;
+        RefreshLookPage();
     }
 
     void Autostart_Click(object sender, RoutedEventArgs e)
@@ -80,6 +121,13 @@ public partial class MainWindow
         UpdateSwitches(true);
         CheckFullscreen();
     }
+	
+	void ShowSeconds_Click(object sender, RoutedEventArgs e)
+    {
+        Settings.ShowSeconds = !Settings.ShowSeconds;
+        UpdateSwitches(true);
+        UpdateClock();
+    }
 
     void UpdateSwitches(bool animate)
     {
@@ -90,6 +138,7 @@ public partial class MainWindow
         NetworkSwitch.Set(Settings.Network, animate);
         FullscreenSwitch.Set(Settings.HideFullscreen, animate);
         AutostartSwitch.Set(Autostart.Enabled, animate);
+		ShowSecondsSwitch.Set(Settings.ShowSeconds, animate);
     }
 
     async void Update_Click(object sender, RoutedEventArgs e)
@@ -245,19 +294,21 @@ public partial class MainWindow
     {
         SizeText.Text = Settings.Scale + "%";
         GapText.Text = Settings.Gap + " px";
+		PulseText.Text = Pulses[Settings.Pulse];
         SizeSlider.Set(Settings.Scale, LookView.IsVisible);
         GapSlider.Set(Settings.Gap, LookView.IsVisible);
         DotsSegments.Set(Settings.Dots ? 1 : 0, LookView.IsVisible);
         SeekStyleSegments.Set(Settings.LineBar ? 1 : 0, LookView.IsVisible);
         ((RadioButton)BackdropStrip.Children[(int)Settings.Backdrop]).IsChecked = true;
         ((RadioButton)LyricChangeStrip.Children[(int)Settings.LyricChange]).IsChecked = true;
-        BackdropText.Text = Settings.Backdrop switch
-        {
-            Backdrop.Matrix => "Матрица",
-            Backdrop.Stars => "Звёзды",
-            Backdrop.MatrixAndStars => "Матрица и звёзды",
-            _ => "Свечение",
-        };
+		BackdropText.Text = Settings.Backdrop switch
+		{
+			Backdrop.Matrix => "Матрица",
+			Backdrop.Stars => "Звезды",
+			Backdrop.MatrixAndStars => "Матрица и Звезды",
+			Backdrop.GlowAndStars => "Свечение и Звезды",
+			_ => "Свечение"
+		};
         LyricChangeText.Text = Settings.LyricChange switch
         {
             LyricChange.Wave => "Волна по буквам",

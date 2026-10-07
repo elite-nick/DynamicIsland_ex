@@ -9,7 +9,8 @@ enum Backdrop
     Glow = 0,
     Matrix = 1,
     Stars = 2,
-    MatrixAndStars = Matrix | Stars,
+	MatrixAndStars = 3,
+    GlowAndStars = 4
 }
 
 enum LyricChange
@@ -30,11 +31,21 @@ static class Settings
     static bool _rim = ReadSwitch(nameof(Rim)), _appVolume = ReadSwitch(nameof(AppVolume));
     static bool _dots = ReadSwitch(nameof(Dots), false);
     static bool _lineBar = ReadSwitch(nameof(LineBar));
-    static Backdrop _backdrop = (Backdrop)Math.Clamp(Read(nameof(Backdrop), 0), 0, (int)Backdrop.MatrixAndStars);
+    static Backdrop _backdrop = (Backdrop)Math.Clamp(Read(nameof(Backdrop), 0), 0, (int)Backdrop.GlowAndStars);
     static LyricChange _lyricChange = (LyricChange)Math.Clamp(Read(nameof(LyricChange), (int)LyricChange.Wave), 0, (int)LyricChange.Drum);
     static int _scale = Math.Clamp(Read(nameof(Scale), DefaultScale), MinScale, MaxScale);
     static int _gap = Math.Clamp(Read(nameof(Gap), DefaultGap), 0, MaxGap);
     static int _accent = Read(nameof(Accent), 0);
+	static bool _showSeconds = ReadSwitch(nameof(ShowSeconds), false);
+	static bool _rimBeat = ReadSwitch(nameof(RimBeat), false);
+	static int _pulse = Math.Clamp(Read(nameof(Pulse), 2), 0, 3);
+	static string _targetMonitor = Read(nameof(TargetMonitor), "");
+
+	public static string TargetMonitor
+    {
+        get => _targetMonitor;
+        set => Write(nameof(TargetMonitor), _targetMonitor = value, RegistryValueKind.String);
+    }
 
     public static bool Dots
     {
@@ -119,6 +130,29 @@ static class Settings
         get => Read<string[]>(nameof(Shelf), []);
         set => Write(nameof(Shelf), value, RegistryValueKind.MultiString);
     }
+	
+	public static bool ShowSeconds
+    {
+        get => _showSeconds;
+        set => Write(nameof(ShowSeconds), _showSeconds = value);
+    }
+	
+	public static int SelectedMonitor
+    {
+        get => Read(nameof(SelectedMonitor), -1);
+        set => Write(nameof(SelectedMonitor), value);
+    }
+	
+	public static bool RimBeat
+    {
+        get => _rimBeat;
+        set => Write(nameof(RimBeat), _rimBeat = value);
+    }
+	public static int Pulse
+	{
+    get => _pulse;
+    set => Write(nameof(Pulse), _pulse = Math.Clamp(value, 0, 3));
+	}
 
     static bool ReadSwitch(string name, bool fallback = true) => Read(name, fallback ? 1 : 0) != 0;
 
@@ -139,16 +173,13 @@ static class Settings
 
     static void Write(string name, int value) => Write(name, value, RegistryValueKind.DWord);
 
-    static void Write(string name, object value, RegistryValueKind kind)
+	static void Write(string name, object value, RegistryValueKind kind)
     {
         try
         {
             using RegistryKey key = Registry.CurrentUser.CreateSubKey(Key);
             key.SetValue(name, value, kind);
         }
-        catch (Exception ex)
-        {
-            App.Log(ex);
-        }
+        catch (Exception ex) { App.Log(ex); }
     }
 }

@@ -19,7 +19,7 @@ public sealed class Goo : FrameworkElement
     static readonly (double At, double Level)[] FlashFrames = [(0, 0), (0.04, 1), (0.13, 0.3), (0.19, 0.9), (0.5, 0), (1, 0)];
 
     readonly SolidColorBrush _rim = new(PlainRim);
-    readonly Light _flash = new();
+    readonly Light _beat = new(), _flash = new();
     readonly Pen _edge;
 
     Rect _pill = Rect.Empty, _bubble = Rect.Empty;
@@ -27,10 +27,14 @@ public sealed class Goo : FrameworkElement
 
     public Goo() => _edge = new Pen(_rim, 2 * RimWidth) { LineJoin = PenLineJoin.Round };
 
-    public void Tint(Color? color, Duration time)
+	public void Tint(Color? color, Duration time)
     {
         Color to = color is { } c ? Color.FromArgb(TintedAlpha, c.R, c.G, c.B) : PlainRim;
         _rim.BeginAnimation(SolidColorBrush.ColorProperty, new ColorAnimation(to, time));
+        
+        var lit = new ColorAnimation(color ?? Colors.White, time);
+        _beat.Edge.BeginAnimation(SolidColorBrush.ColorProperty, lit);
+        _beat.Mist.BeginAnimation(SolidColorBrush.ColorProperty, lit);
     }
 
     public void StartFlashing(Color color, TimeSpan round)
@@ -52,6 +56,13 @@ public sealed class Goo : FrameworkElement
     {
         _flash.Edge.BeginAnimation(Brush.OpacityProperty, null);
         _flash.Mist.BeginAnimation(Brush.OpacityProperty, null);
+    }
+
+	public void Beat(double level)
+    {
+        level = Math.Clamp(level, 0, 1);
+        _beat.Edge.Opacity = level;
+        _beat.Mist.Opacity = level * HazeOpacity;
     }
 
     public void SetShape(Rect pill, double radius, Rect bubble)
@@ -97,11 +108,13 @@ public sealed class Goo : FrameworkElement
         outside.Children.Add(new RectangleGeometry(around));
         outside.Children.Add(body);
 
-        dc.PushClip(outside);
+		dc.PushClip(outside);
         dc.DrawGeometry(null, _edge, body);
+        dc.DrawGeometry(null, _beat.Line, body);
         dc.DrawGeometry(null, _flash.Line, body);
         dc.Pop();
         dc.DrawGeometry(Brushes.Black, null, body);
+        foreach (Pen mist in _beat.Mists) dc.DrawGeometry(null, mist, body);
         foreach (Pen mist in _flash.Mists) dc.DrawGeometry(null, mist, body);
     }
 

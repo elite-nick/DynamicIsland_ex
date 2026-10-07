@@ -19,6 +19,11 @@ public partial class MainWindow
     const double IconBlur = 6;
     const string UnknownArtist = "Неизвестный исполнитель";
     static readonly Duration TintTime = Ms(450);
+	static readonly string[] Pulses = ["Выкл", "Слабое", "Среднее", "Сильное"]; 
+    static readonly double[] PulseShare = [0, 0.4, 0.7, 1];
+    const double PulseFrom = 0.5;
+    const double PulseAttack = 0.02, PulseRelease = 0.22;
+    double _pulse;
 
     readonly SpectrumService _spectrum = new();
     readonly float[] _bands = new float[SpectrumService.Bands];
@@ -144,13 +149,13 @@ public partial class MainWindow
         foreach (RadioButton tile in BackdropStrip.Children) ((BackdropPreview)tile.Content).Tint(palette);
     }
 
-    void SyncBackdrop()
+	void SyncBackdrop()
     {
         Backdrop backdrop = Settings.Backdrop;
-        Glow.SetVisible(backdrop == Backdrop.Glow);
-        PlayerMatrix.SetVisible(backdrop.HasFlag(Backdrop.Matrix));
-        PlayerStars.SetVisible(backdrop.HasFlag(Backdrop.Stars));
-        PlayerStars.AboveMatrix = backdrop.HasFlag(Backdrop.Matrix);
+        Glow.SetVisible(backdrop == Backdrop.Glow || backdrop == Backdrop.GlowAndStars);
+        PlayerMatrix.SetVisible(backdrop == Backdrop.Matrix || backdrop == Backdrop.MatrixAndStars);
+        PlayerStars.SetVisible(backdrop == Backdrop.Stars || backdrop == Backdrop.MatrixAndStars || backdrop == Backdrop.GlowAndStars);
+        PlayerStars.AboveMatrix = backdrop == Backdrop.MatrixAndStars;
     }
 
     void SyncEq()
@@ -159,12 +164,13 @@ public partial class MainWindow
         if (IsEqVisible) _eqLoop.Start();
     }
 
-    bool AdvanceEq(double dt)
+	bool AdvanceEq(double dt)
     {
         double now = _clock.Elapsed.TotalSeconds;
         bool playing = _media.IsPlaying;
         float[]? bands = _spectrum.Read(_bands) ? _bands : null;
         double level = 0;
+        
         if (bands == null)
         {
             float peak = _audio.Peak();
@@ -172,16 +178,35 @@ public partial class MainWindow
         }
 
         bool moving = Eq.Tick(bands, level, playing, now, dt);
-        moving |= Settings.Backdrop == Backdrop.Glow ? Glow.Tick(Eq, now, dt) : AdvanceBackdrop(bands, playing, now, dt);
+        
+        double beat = IsEqVisible && playing ? Math.Clamp((Eq.Level(0) - PulseFrom) / (1 - PulseFrom), 0, 1) * PulseShare[Settings.Pulse] : 0;
+        _pulse += (beat - _pulse) * (1 - Math.Exp(-dt / (beat > _pulse ? PulseAttack : PulseRelease)));
+        bool lit = _pulse > 0.004;
+        Body.Beat(lit ? _pulse : _pulse = 0);
+
+        if (Settings.Backdrop == Backdrop.Glow || Settings.Backdrop == Backdrop.GlowAndStars)
+        {
+            moving |= Glow.Tick(Eq, now, dt);
+        }
+        
+        if (Settings.Backdrop != Backdrop.Glow)
+        {
+            moving |= AdvanceBackdrop(bands, playing, now, dt);
+        }
+            
         return IsEqVisible && (playing || moving);
     }
 
-    bool AdvanceBackdrop(float[]? bands, bool playing, double now, double dt)
+	bool AdvanceBackdrop(float[]? bands, bool playing, double now, double dt)
     {
         _backdropLevels.Follow(bands, Eq, playing, dt);
         Backdrop backdrop = Settings.Backdrop;
-        bool moving = backdrop.HasFlag(Backdrop.Matrix) && PlayerMatrix.Tick(_backdropLevels);
-        if (backdrop.HasFlag(Backdrop.Stars)) moving |= PlayerStars.Tick(_backdropLevels, playing, now, dt);
+        
+        bool hasMatrix = backdrop == Backdrop.Matrix || backdrop == Backdrop.MatrixAndStars;
+        bool hasStars = backdrop == Backdrop.Stars || backdrop == Backdrop.MatrixAndStars || backdrop == Backdrop.GlowAndStars;
+
+        bool moving = hasMatrix && PlayerMatrix.Tick(_backdropLevels);
+        if (hasStars) moving |= PlayerStars.Tick(_backdropLevels, playing, now, dt);
         return moving;
     }
 
