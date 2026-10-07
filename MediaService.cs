@@ -52,6 +52,14 @@ sealed class MediaService
     public Color[] Palette { get; private set; } = CoverPalette.Plain;
     public Color Accent => Palette[0];
     public bool IsPlaying { get; private set; }
+	public int SessionCount
+    {
+        get
+        {
+            try { return _manager?.GetSessions().Count ?? 0; }
+            catch { return 0; }
+        }
+    }
     public bool HasTrack => _session != null && (Title.Length > 0 || (_noTimeline && _barSearched && IsLive));
     public TimeSpan Duration => _duration;
     public bool HasBarPosition => _noTimeline && _barFound;

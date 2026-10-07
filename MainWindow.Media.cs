@@ -84,6 +84,7 @@ public partial class MainWindow
         TrackLyrics();
         UpdateView();
         UpdateLyric();
+		SwitchSourceButton.Visibility = _media.SessionCount > 1 ? Visibility.Visible : Visibility.Collapsed;
     }
 
     static void SwapIcons(FrameworkElement leave, FrameworkElement enter, bool animate)
@@ -248,6 +249,11 @@ public partial class MainWindow
         RememberSkip(1);
         NextIcon.Play();
         _media.Next();
+    }
+	
+	void SwitchSource_Click(object sender, RoutedEventArgs e)
+    {
+        SwitchSource(1);
     }
 
     void Art_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)

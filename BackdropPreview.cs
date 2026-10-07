@@ -66,16 +66,21 @@ sealed class BackdropPreview : FrameworkElement
         return Math.Clamp(QuietLevel + BeatGain * beat * (1 - HighsFalloff * share) + RippleGain * ripple, 0, 1);
     }
 
-    protected override void OnRender(DrawingContext dc)
+	protected override void OnRender(DrawingContext dc)
     {
         double w = ActualWidth, h = ActualHeight;
         if (w <= 0 || h <= 0) return;
-
         dc.PushClip(new RectangleGeometry(new Rect(0, 0, w, h), Rounding, Rounding));
         dc.DrawRectangle(Brushes.Black, null, new Rect(0, 0, w, h));
-        if (Kind == Backdrop.Glow) DrawGlow(dc, w, h);
-        if (Kind.HasFlag(Backdrop.Stars)) DrawStars(dc, w, h - (Kind.HasFlag(Backdrop.Matrix) ? SkyOverMatrix : 0));
-        if (Kind.HasFlag(Backdrop.Matrix)) DrawMatrix(dc, w, h);
+
+        bool hasGlow = Kind == Backdrop.Glow || Kind == Backdrop.GlowAndStars;
+        bool hasMatrix = Kind == Backdrop.Matrix || Kind == Backdrop.MatrixAndStars;
+        bool hasStars = Kind == Backdrop.Stars || Kind == Backdrop.MatrixAndStars || Kind == Backdrop.GlowAndStars;
+
+        if (hasGlow) DrawGlow(dc, w, h);
+        if (hasStars) DrawStars(dc, w, h - (hasMatrix ? SkyOverMatrix : 0));
+        if (hasMatrix) DrawMatrix(dc, w, h);
+        
         dc.Pop();
     }
 

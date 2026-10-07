@@ -632,6 +632,12 @@
                                     Fill="{StaticResource Dim}" VerticalAlignment="Center"/>
                         <local:Digits x:Name="PlayerVolumeText" FontSize="11" Foreground="{StaticResource Dim}" Margin="5,0,0,0" VerticalAlignment="Center"/>
                     </StackPanel>
+					
+					<Button x:Name="SwitchSourceButton" Style="{StaticResource IconButton}" Width="44" Height="44" 
+							HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,16,12"
+							Click="SwitchSource_Click" Visibility="Collapsed">
+						<local:Icon Kind="Segments" Width="18" Height="18" Fill="White"/>
+					</Button>
                 </Grid>
 
                 <Grid x:Name="IdleBigView" Width="320" Height="124" HorizontalAlignment="Center" VerticalAlignment="Top">
