@@ -2,12 +2,11 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:DynamicIsland"
-        Title="Dynamic Island (Extented v1.0)" Width="680" Height="470"
+        Title="Dynamic Island (Extended v1.0)" AllowDrop="True" Width="680" Height="550"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
         ShowInTaskbar="False" ShowActivated="False" Topmost="True" ResizeMode="NoResize"
         Focusable="False" UseLayoutRounding="True"
-        FontFamily="./Fonts/#SF Pro Text, SF Pro Text, Segoe UI Variable Display, Segoe UI" Foreground="White"
-		AllowDrop="True">
+        FontFamily="./Fonts/#SF Pro Text, SF Pro Text, Segoe UI Variable Display, Segoe UI" Foreground="White">
 
     <Window.Resources>
         <SolidColorBrush x:Key="Dim" Color="#99FFFFFF"/>
@@ -37,26 +36,9 @@
                             <Grid.RenderTransform>
                                 <ScaleTransform x:Name="Squish"/>
                             </Grid.RenderTransform>
-                            <Ellipse x:Name="Disc" Fill="White" Opacity="0"/>
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Grid>
                         <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Trigger.EnterActions>
-                                    <BeginStoryboard>
-                                        <Storyboard>
-                                            <DoubleAnimation Storyboard.TargetName="Disc" Storyboard.TargetProperty="Opacity" To="0.14" Duration="0:0:0.12"/>
-                                        </Storyboard>
-                                    </BeginStoryboard>
-                                </Trigger.EnterActions>
-                                <Trigger.ExitActions>
-                                    <BeginStoryboard>
-                                        <Storyboard>
-                                            <DoubleAnimation Storyboard.TargetName="Disc" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.3"/>
-                                        </Storyboard>
-                                    </BeginStoryboard>
-                                </Trigger.ExitActions>
-                            </Trigger>
                             <Trigger Property="IsPressed" Value="True">
                                 <Trigger.EnterActions>
                                     <BeginStoryboard>
@@ -387,7 +369,7 @@
 
     </Window.Resources>
 
-    <Grid x:Name="Root" Width="620" Height="440" Opacity="0"
+    <Grid x:Name="Root" Width="620" Height="520" Opacity="0"
           HorizontalAlignment="Center" VerticalAlignment="Top" RenderTransformOrigin="0.5,0"
           MouseLeftButtonDown="Root_MouseLeftButtonDown" MouseLeftButtonUp="Root_MouseLeftButtonUp"
           MouseMove="Root_MouseMove"
@@ -447,6 +429,13 @@
                     <local:Ring x:Name="TimerRing" Width="18" Height="18"
                                 HorizontalAlignment="Left" VerticalAlignment="Center" Margin="9,0,0,0"/>
                     <local:Digits x:Name="TimerText" Text="25:00" FontSize="13.5" FontWeight="SemiBold"
+                                  HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,14,0"/>
+                </Grid>
+
+                <Grid x:Name="RecordView" Width="132" Height="34" HorizontalAlignment="Center" VerticalAlignment="Top">
+                    <Ellipse x:Name="RecordDot" Width="10" Height="10" Fill="{StaticResource Red}"
+                             HorizontalAlignment="Left" VerticalAlignment="Center" Margin="14,0,0,0"/>
+                    <local:Digits x:Name="RecordText" Text="0:00" FontSize="13.5" FontWeight="SemiBold" Foreground="{StaticResource Red}"
                                   HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,14,0"/>
                 </Grid>
 
@@ -600,7 +589,8 @@
                                       HorizontalAlignment="Right" VerticalAlignment="Center"/>
                     </Grid>
 
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,8">
+                    <local:Puddle HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,8">
+                    <StackPanel Orientation="Horizontal">
                         <Button Style="{StaticResource IconButton}" Click="Prev_Click">
                             <local:Skip x:Name="PrevIcon" Back="True"/>
                         </Button>
@@ -616,8 +606,9 @@
                             <local:Skip x:Name="NextIcon"/>
                         </Button>
                     </StackPanel>
+                    </local:Puddle>
 
-                    <StackPanel x:Name="PlayerHeadset" Orientation="Horizontal" Height="52" Margin="0,0,20,8"
+                    <StackPanel x:Name="PlayerHeadset" Orientation="Horizontal" Height="52" Margin="0,0,62,8"
                                 HorizontalAlignment="Right" VerticalAlignment="Bottom" IsHitTestVisible="False"
                                 Visibility="Collapsed">
                         <local:Icon x:Name="PlayerHeadsetIcon" Kind="Headphones" Width="14" Height="14"
@@ -632,12 +623,13 @@
                                     Fill="{StaticResource Dim}" VerticalAlignment="Center"/>
                         <local:Digits x:Name="PlayerVolumeText" FontSize="11" Foreground="{StaticResource Dim}" Margin="5,0,0,0" VerticalAlignment="Center"/>
                     </StackPanel>
-					
-					<Button x:Name="SwitchSourceButton" Style="{StaticResource IconButton}" Width="44" Height="44" 
-							HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,16,12"
+                    <local:Puddle HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,12,12">
+                        <Button x:Name="SwitchSourceButton" Style="{StaticResource IconButton}" Width="44" Height="44" 
+							Margin="0"
 							Click="SwitchSource_Click" Visibility="Collapsed">
 						<local:Icon Kind="Bars" Width="18" Height="18" Fill="White"/>
 					</Button>
+                    </local:Puddle>
                 </Grid>
 
                 <Grid x:Name="IdleBigView" Width="320" Height="124" HorizontalAlignment="Center" VerticalAlignment="Top">
@@ -675,7 +667,8 @@
                 </Grid>
 
                 <Grid x:Name="TimerBigView" Width="330" Height="92" HorizontalAlignment="Center" VerticalAlignment="Top">
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="20,0,0,0">
+                    <local:Puddle HorizontalAlignment="Left" VerticalAlignment="Center" Margin="20,0,0,0">
+                    <StackPanel Orientation="Horizontal">
                         <Button Style="{StaticResource IconButton}" Width="50" Height="50" Click="TimerToggle_Click">
                             <Grid Width="50" Height="50">
                                 <local:Ring x:Name="BigRing" Thickness="3" RenderTransformOrigin="0.5,0.5"/>
@@ -697,6 +690,7 @@
                             </Grid>
                         </Button>
                     </StackPanel>
+                    </local:Puddle>
                     <StackPanel HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,26,2">
                         <TextBlock x:Name="BigTimerLabel" Text="Таймер" FontSize="12"
                                    Opacity="0.8" HorizontalAlignment="Right"/>
@@ -709,7 +703,7 @@
                 <Grid x:Name="TimerSetView" Width="300" Height="190" HorizontalAlignment="Center" VerticalAlignment="Top">
                     <StackPanel Margin="14,14,14,0">
                         <TextBlock Style="{StaticResource Caption}" Text="ТАЙМЕР" Margin="8,0,0,0"/>
-                        <Grid Height="56">
+                        <local:Puddle Height="56">
                             <Button Style="{StaticResource IconButton}" HorizontalAlignment="Left" Click="TimerLess_Click">
                                 <local:Icon Kind="Minus" Width="16" Height="16"/>
                             </Button>
@@ -719,7 +713,7 @@
                             <Button Style="{StaticResource IconButton}" HorizontalAlignment="Right" Click="TimerMore_Click">
                                 <local:Icon Kind="Plus" Width="16" Height="16"/>
                             </Button>
-                        </Grid>
+                        </local:Puddle>
                         <UniformGrid Rows="1" Margin="0,4,0,0">
                             <Button Style="{StaticResource ChipButton}" Tag="5" Content="5 мин" Click="TimerPreset_Click"/>
                             <Button Style="{StaticResource ChipButton}" Tag="10" Content="10 мин" Click="TimerPreset_Click"/>
@@ -733,15 +727,79 @@
                     </StackPanel>
                 </Grid>
 
-                <Grid x:Name="MenuView" Width="300" Height="248" HorizontalAlignment="Center" VerticalAlignment="Top">
+                <Grid x:Name="RecordBigView" Width="340" Height="92" HorizontalAlignment="Center" VerticalAlignment="Top">
+                    <local:Puddle HorizontalAlignment="Left" VerticalAlignment="Center" Margin="20,0,0,0">
+                    <StackPanel Orientation="Horizontal">
+                        <Button Style="{StaticResource IconButton}" Width="50" Height="50" local:Puddle.Tint="#FF453A" Click="RecordStop_Click">
+                            <Grid Width="50" Height="50">
+                                <Ellipse Fill="{StaticResource Red}" Opacity="0.25"/>
+                                <Rectangle Width="16" Height="16" RadiusX="4" RadiusY="4" Fill="{StaticResource Red}"/>
+                            </Grid>
+                        </Button>
+                        <Button x:Name="RecordPauseButton" Style="{StaticResource IconButton}" Width="50" Height="50" Margin="10,0,0,0" Click="RecordPause_Click">
+                            <Grid Width="50" Height="50">
+                                <Ellipse x:Name="RecordPauseDisc" Fill="#2EFFFFFF"/>
+                                <Path x:Name="RecordPauseIcon" Data="M1,1 H5 V15 H1 Z M10,1 H14 V15 H10 Z" Fill="White" Stroke="White"
+                                      StrokeThickness="2" StrokeLineJoin="Round"
+                                      HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                <Path x:Name="RecordResumeIcon" Data="M2,1 L13,8 L2,15 Z" Margin="3,0,0,0" Opacity="0"
+                                      Fill="{StaticResource Orange}" Stroke="{StaticResource Orange}"
+                                      StrokeThickness="2" StrokeLineJoin="Round"
+                                      HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Grid>
+                        </Button>
+                    </StackPanel>
+                    </local:Puddle>
+                    <StackPanel HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,26,2">
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                            <Ellipse x:Name="RecordBigDot" Width="7" Height="7" Fill="{StaticResource Red}"
+                                     VerticalAlignment="Center" Margin="0,1,6,0"/>
+                            <TextBlock x:Name="RecordBigLabel" Text="OBS · Запись" FontSize="12" Opacity="0.8"/>
+                        </StackPanel>
+                        <local:Digits x:Name="RecordBigTime" Text="0:00" FontSize="40" FontWeight="SemiBold"
+                                      FontFamily="{StaticResource Display}"
+                                      HorizontalAlignment="Right" Margin="0,-4,0,0"/>
+                        <TextBlock x:Name="RecordInfo" FontSize="11" Foreground="{StaticResource Dim}" HorizontalAlignment="Right"
+                                   MaxWidth="180" TextTrimming="CharacterEllipsis" Margin="0,-2,0,0"/>
+                    </StackPanel>
+                </Grid>
+
+                <Grid x:Name="RecordSetView" Width="320" Height="92" HorizontalAlignment="Center" VerticalAlignment="Top">
+                    <StackPanel Margin="26,0,20,2" VerticalAlignment="Center" HorizontalAlignment="Left">
+                        <TextBlock x:Name="RecordSetCaption" Text="OBS" FontSize="12" Opacity="0.8" TextTrimming="CharacterEllipsis"/>
+                        <TextBlock x:Name="RecordSetTitle" Text="Не пишет" FontSize="21" FontWeight="SemiBold"
+                                   FontFamily="{StaticResource Display}" Margin="0,1,0,0" TextTrimming="CharacterEllipsis"/>
+                    </StackPanel>
+                    <Button x:Name="RecordStart" Style="{StaticResource ChipButton}" Width="118" Height="40" Margin="0,0,20,0"
+                            HorizontalAlignment="Right" VerticalAlignment="Center"
+                            Background="{StaticResource Red}" Foreground="Black" FontSize="13.5" FontWeight="SemiBold"
+                            Click="RecordStart_Click">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="10" Height="10" Fill="Black" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <TextBlock Text="Записать" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+                </Grid>
+
+                <Grid x:Name="MenuView" Width="300" Height="288" HorizontalAlignment="Center" VerticalAlignment="Top">
                     <local:RowList Margin="10,14,10,0">
-                        <TextBlock Style="{StaticResource Caption}" Text="DYNAMIC ISLAND (EXTENTED v1.0)" Margin="12,0,0,6"/>
+                        <TextBlock Style="{StaticResource Caption}" Text="DYNAMIC ISLAND (EXTENDED v1.0)" Margin="12,0,0,6"/>
                         <Button Style="{StaticResource RowButton}" Click="TimerRow_Click">
                             <Grid>
                                 <local:Icon Style="{StaticResource RowIcon}" Kind="Clock"/>
                                 <TextBlock Style="{StaticResource RowLabel}" Text="Таймер"/>
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                                     <local:Digits x:Name="MenuTimer" VerticalAlignment="Center"/>
+                                    <local:Icon Style="{StaticResource RowChevron}" Margin="8,1,0,0"/>
+                                </StackPanel>
+                            </Grid>
+                        </Button>
+                        <Button Style="{StaticResource RowButton}" Click="RecordRow_Click">
+                            <Grid>
+                                <local:Icon x:Name="MenuRecordIcon" Style="{StaticResource RowIcon}" Kind="Record"/>
+                                <TextBlock Style="{StaticResource RowLabel}" Text="Запись OBS"/>
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                    <local:Digits x:Name="MenuRecord" Foreground="{StaticResource Red}" VerticalAlignment="Center"/>
                                     <local:Icon Style="{StaticResource RowChevron}" Margin="8,1,0,0"/>
                                 </StackPanel>
                             </Grid>
@@ -780,23 +838,23 @@
                 </Grid>
 
                 <Grid x:Name="SettingsView" Width="320" Height="374" HorizontalAlignment="Center" VerticalAlignment="Top">
-                    <ScrollViewer Margin="10,8,10,0" VerticalScrollBarVisibility="Hidden" HorizontalScrollBarVisibility="Disabled" PanningMode="VerticalOnly">
-					<local:RowList Margin="10,8,10,0">
+                    <ScrollViewer VerticalScrollBarVisibility="Hidden" HorizontalScrollBarVisibility="Disabled" PanningMode="VerticalOnly" PreviewMouseWheel="SettingsScroll_PreviewMouseWheel">
+                    <local:RowList Margin="10,8,10,0">
                         <Button Style="{StaticResource BackButton}" Content="НАСТРОЙКИ" Click="SettingsBack_Click"/>
-						<Button x:Name="MonitorRow" Style="{StaticResource RowButton}" Click="MonitorRow_Click">
+                        <Button Style="{StaticResource RowButton}" Click="ShowSeconds_Click">
+							<Grid>
+								<local:Icon Style="{StaticResource RowIcon}" Kind="Clock"/>
+								<TextBlock Style="{StaticResource RowLabel}" Text="Секунды у времени"/>
+								<local:Toggle x:Name="ShowSecondsSwitch" Style="{StaticResource RowSwitch}"/>
+							</Grid>
+						</Button>
+                        <Button x:Name="MonitorRow" Style="{StaticResource RowButton}" Click="MonitorRow_Click">
 							<Grid>
 								<local:Icon Style="{StaticResource RowIcon}" Kind="Expand"/>
 								<TextBlock Style="{StaticResource RowLabel}" Text="Монитор"/>
 								<StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
 									<TextBlock x:Name="MonitorText" Foreground="{StaticResource Dim}" VerticalAlignment="Center"/>
 								</StackPanel>
-							</Grid>
-						</Button>
-						<Button Style="{StaticResource RowButton}" Click="ShowSeconds_Click">
-							<Grid>
-								<local:Icon Style="{StaticResource RowIcon}" Kind="Clock"/>
-								<TextBlock Style="{StaticResource RowLabel}" Text="Секунды у времени"/>
-								<local:Toggle x:Name="ShowSecondsSwitch" Style="{StaticResource RowSwitch}"/>
 							</Grid>
 						</Button>
                         <Button Style="{StaticResource RowButton}" Click="Lyrics_Click">
@@ -859,7 +917,7 @@
                             </Grid>
                         </Button>
                     </local:RowList>
-					</ScrollViewer>
+                    </ScrollViewer>
                 </Grid>
 
                 <Grid x:Name="UpdatePage" Width="320" Height="150" HorizontalAlignment="Center" VerticalAlignment="Top">
@@ -897,9 +955,9 @@
                     </StackPanel>
                 </Grid>
 
-                <Grid x:Name="LookView" Width="352" Height="368" HorizontalAlignment="Center" VerticalAlignment="Top">
-                    <ScrollViewer Margin="10,8,10,0" VerticalScrollBarVisibility="Hidden" HorizontalScrollBarVisibility="Disabled" PanningMode="VerticalOnly">
-					<local:RowList Margin="10,8,10,0">
+                <Grid x:Name="LookView" Width="352" Height="448" HorizontalAlignment="Center" VerticalAlignment="Top">
+                    <ScrollViewer VerticalScrollBarVisibility="Hidden" HorizontalScrollBarVisibility="Disabled" PanningMode="VerticalOnly" PreviewMouseWheel="SettingsScroll_PreviewMouseWheel">
+                    <local:RowList Margin="10,8,10,0">
                         <Button Style="{StaticResource BackButton}" Content="ОФОРМЛЕНИЕ" Click="SettingsBack_Click"/>
                         <Button x:Name="SizeRow" Style="{StaticResource RowButton}">
                             <Grid>
@@ -914,14 +972,14 @@
                         <Button x:Name="GapRow" Style="{StaticResource RowButton}">
                             <Grid>
                                 <local:Icon Style="{StaticResource RowIcon}" Kind="Gap"/>
-                                <TextBlock Style="{StaticResource RowLabel}" Text="Отступ с края"/>
+                                <TextBlock Style="{StaticResource RowLabel}" Text="Отступ от края"/>
                                 <local:Scrubber x:Name="GapSlider" Style="{StaticResource RowSlider}"
                                                 Minimum="0" Maximum="24" Step="2" Changed="GapSlider_Changed"/>
                                 <local:Digits x:Name="GapText" Foreground="{StaticResource Dim}"
                                               HorizontalAlignment="Right" VerticalAlignment="Center"/>
                             </Grid>
                         </Button>
-						<Button x:Name="PulseRow" Style="{StaticResource RowButton}" Click="Pulse_Click">
+                        <Button x:Name="PulseRow" Style="{StaticResource RowButton}" Click="Pulse_Click">
 							<Grid>
 								<local:Icon Style="{StaticResource RowIcon}" Kind="Pulse"/>
 								<TextBlock Style="{StaticResource RowLabel}" Text="Свечение под бит"/>
@@ -929,6 +987,13 @@
 										   HorizontalAlignment="Right" VerticalAlignment="Center"/>
 							</Grid>
 						</Button>
+                        <Button Style="{StaticResource RowButton}" Click="Glass_Click">
+                            <Grid>
+                                <local:Icon Style="{StaticResource RowIcon}" Kind="Sparkle"/>
+                                <TextBlock Style="{StaticResource RowLabel}" Text="Стекло"/>
+                                <local:Toggle x:Name="GlassSwitch" Style="{StaticResource RowSwitch}"/>
+                            </Grid>
+                        </Button>
                         <Button Style="{StaticResource RowButton}" Click="Dots_Click">
                             <Grid>
                                 <local:Icon Style="{StaticResource RowIcon}" Kind="Bars"/>
@@ -939,7 +1004,7 @@
                         <Button Style="{StaticResource RowButton}" Click="SeekStyle_Click">
                             <Grid>
                                 <local:Icon Style="{StaticResource RowIcon}" Kind="Segments"/>
-                                <TextBlock Style="{StaticResource RowLabel}" Text="Полоса"/>
+                                <TextBlock Style="{StaticResource RowLabel}" Text="Полоса трека"/>
                                 <local:Segments x:Name="SeekStyleSegments" Style="{StaticResource RowSegments}" Labels="Сплошная|По строкам"/>
                             </Grid>
                         </Button>
@@ -973,7 +1038,7 @@
                                 <RadioButton Style="{StaticResource Tile}" Tag="(М+З)" Click="BackdropTile_Click">
                                     <local:BackdropPreview Kind="MatrixAndStars"/>
                                 </RadioButton>
-								<RadioButton Style="{StaticResource Tile}" Tag="(С+З)" Click="BackdropTile_Click">
+                            <RadioButton Style="{StaticResource Tile}" Tag="(С+З)" Click="BackdropTile_Click">
 									<local:BackdropPreview Kind="GlowAndStars"/>
 								</RadioButton>
                             </UniformGrid>
@@ -1007,6 +1072,35 @@
                                 </RadioButton>
                             </UniformGrid>
                         </Border>
+                        <Button Style="{StaticResource RowButton}" Click="HoverRow_Click">
+                            <Grid>
+                                <local:Icon Style="{StaticResource RowIcon}" Kind="Pointer"/>
+                                <TextBlock Style="{StaticResource RowLabel}" Text="Наведение"/>
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                    <TextBlock x:Name="HoverText" Foreground="{StaticResource Dim}" VerticalAlignment="Center"/>
+                                    <local:Icon x:Name="HoverChevron" Style="{StaticResource RowChevron}" Margin="8,1,0,0"
+                                                RenderTransformOrigin="0.5,0.5">
+                                        <local:Icon.RenderTransform>
+                                            <RotateTransform/>
+                                        </local:Icon.RenderTransform>
+                                    </local:Icon>
+                                </StackPanel>
+                            </Grid>
+                        </Button>
+                        <Border x:Name="HoverTiles" Height="0" Visibility="Collapsed" ClipToBounds="True"
+                                SizeChanged="LookTiles_SizeChanged">
+                            <UniformGrid x:Name="HoverStrip" Rows="1" Height="64" Margin="6,2,6,0" VerticalAlignment="Top" Opacity="0">
+                                <RadioButton Style="{StaticResource Tile}" Tag="Диск" Click="HoverTile_Click">
+                                    <local:HoverPreview Kind="Disc"/>
+                                </RadioButton>
+                                <RadioButton Style="{StaticResource Tile}" Tag="Магнит" Click="HoverTile_Click">
+                                    <local:HoverPreview Kind="Magnet"/>
+                                </RadioButton>
+                                <RadioButton Style="{StaticResource Tile}" Tag="Перетекание" Click="HoverTile_Click">
+                                    <local:HoverPreview Kind="Flow"/>
+                                </RadioButton>
+                            </UniformGrid>
+                        </Border>
                         <Grid Height="40" Margin="12,0">
                             <local:Icon Style="{StaticResource RowIcon}" Kind="Drop"/>
                             <TextBlock Style="{StaticResource RowLabel}" Text="Акцентный цвет" FontSize="13.5"/>
@@ -1035,7 +1129,7 @@
                             <RadioButton Style="{StaticResource Swatch}" Background="#FF375F" Tag="Розовый" Click="Accent_Click"/>
                         </UniformGrid>
                     </local:RowList>
-					</ScrollViewer>
+                    </ScrollViewer>
                 </Grid>
 
                 <Grid x:Name="ShelfView" Width="380" Height="136" HorizontalAlignment="Center" VerticalAlignment="Top">
@@ -1117,6 +1211,12 @@
                 </TransformGroup>
             </Border.RenderTransform>
             <Grid x:Name="BubbleBody" ClipToBounds="True">
+                <Grid x:Name="BubbleRecord" Width="76" HorizontalAlignment="Left">
+                    <Ellipse x:Name="BubbleRecordDot" Width="9" Height="9" Fill="{StaticResource Red}"
+                             HorizontalAlignment="Left" VerticalAlignment="Center" Margin="12,0,0,0"/>
+                    <local:Digits x:Name="BubbleRecordText" Text="0:00" FontSize="12.5" FontWeight="SemiBold" Foreground="{StaticResource Red}"
+                                  HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                </Grid>
                 <Grid x:Name="BubbleTimer" Width="76" HorizontalAlignment="Left">
                     <local:Ring x:Name="BubbleRing" Width="16" Height="16"
                                 HorizontalAlignment="Left" VerticalAlignment="Center" Margin="8,0,0,0"/>

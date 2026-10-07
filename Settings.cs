@@ -20,6 +20,13 @@ enum LyricChange
     Drum,
 }
 
+enum Hover
+{
+    Disc,
+    Magnet,
+    Flow,
+}
+
 static class Settings
 {
     const string Key = @"Software\DynamicIsland";
@@ -29,6 +36,8 @@ static class Settings
     static bool _lyrics = ReadSwitch(nameof(Lyrics)), _lyricEffects = ReadSwitch(nameof(LyricEffects));
     static bool _network = ReadSwitch(nameof(Network)), _hideFullscreen = ReadSwitch(nameof(HideFullscreen));
     static bool _rim = ReadSwitch(nameof(Rim)), _appVolume = ReadSwitch(nameof(AppVolume));
+    static bool _glass = ReadSwitch(nameof(Glass), false);
+    static Hover _hover = (Hover)Math.Clamp(Read(nameof(Hover), 0), 0, (int)Hover.Flow);
     static bool _dots = ReadSwitch(nameof(Dots), false);
     static bool _lineBar = ReadSwitch(nameof(LineBar));
     static Backdrop _backdrop = (Backdrop)Math.Clamp(Read(nameof(Backdrop), 0), 0, (int)Backdrop.GlowAndStars);
@@ -45,6 +54,18 @@ static class Settings
     {
         get => _targetMonitor;
         set => Write(nameof(TargetMonitor), _targetMonitor = value, RegistryValueKind.String);
+    }
+
+    public static bool Glass
+    {
+        get => _glass;
+        set => Write(nameof(Glass), _glass = value);
+    }
+
+    public static Hover Hover
+    {
+        get => _hover;
+        set => Write(nameof(Hover), (int)(_hover = value));
     }
 
     public static bool Dots

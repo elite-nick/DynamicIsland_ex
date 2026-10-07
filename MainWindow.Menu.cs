@@ -10,7 +10,7 @@ public partial class MainWindow
 {
     const double UpdatePagePadding = 14;
     const int MegabyteShift = 20;
-    const double LookHeight = 368, LookTilesHeight = 72;
+    const double LookHeight = 448, LookTilesHeight = 72;
     const int LargestScale = 130, ScaleStep = 5;
     const int LargestGap = 24, GapStep = 2;
 
@@ -31,10 +31,10 @@ public partial class MainWindow
     void ShowPanelAndCheckUpdate(Panel panel)
     {
         ShowPanel(panel);
-        //_ = _updater.CheckAsync();
+        _ = _updater.CheckAsync();
     }
 
-	public void RefreshMonitorText()
+    public void RefreshMonitorText()
     {
         var screens = System.Windows.Forms.Screen.AllScreens;
         MonitorRow.Visibility = screens.Length > 1 ? Visibility.Visible : Visibility.Collapsed;
@@ -68,11 +68,18 @@ public partial class MainWindow
         RefreshMonitorText();
         CenterOnScreen(); 
     }
-	
-	void Pulse_Click(object sender, RoutedEventArgs e) 
+
+    void Pulse_Click(object sender, RoutedEventArgs e) 
     {
         Settings.Pulse = (Settings.Pulse + 1) % Pulses.Length;
         RefreshLookPage();
+    }
+
+    void ShowSeconds_Click(object sender, RoutedEventArgs e)
+    {
+        Settings.ShowSeconds = !Settings.ShowSeconds;
+        UpdateSwitches(true);
+        UpdateClock();
     }
 
     void Autostart_Click(object sender, RoutedEventArgs e)
@@ -121,13 +128,6 @@ public partial class MainWindow
         UpdateSwitches(true);
         CheckFullscreen();
     }
-	
-	void ShowSeconds_Click(object sender, RoutedEventArgs e)
-    {
-        Settings.ShowSeconds = !Settings.ShowSeconds;
-        UpdateSwitches(true);
-        UpdateClock();
-    }
 
     void UpdateSwitches(bool animate)
     {
@@ -138,7 +138,7 @@ public partial class MainWindow
         NetworkSwitch.Set(Settings.Network, animate);
         FullscreenSwitch.Set(Settings.HideFullscreen, animate);
         AutostartSwitch.Set(Autostart.Enabled, animate);
-		ShowSecondsSwitch.Set(Settings.ShowSeconds, animate);
+        ShowSecondsSwitch.Set(Settings.ShowSeconds, animate);
     }
 
     async void Update_Click(object sender, RoutedEventArgs e)
@@ -228,6 +228,13 @@ public partial class MainWindow
         RefreshLookPage();
     }
 
+    void Glass_Click(object sender, RoutedEventArgs e)
+    {
+        Settings.Glass = !Settings.Glass;
+        RefreshLookPage();
+        SyncGlass(true);
+    }
+
     void SeekStyle_Click(object sender, RoutedEventArgs e)
     {
         Settings.LineBar = SeekStyleSegments.PickUnderPointer() == 1;
@@ -238,6 +245,8 @@ public partial class MainWindow
     void BackdropRow_Click(object sender, RoutedEventArgs e) => ToggleLookTiles(BackdropTiles);
 
     void LyricChangeRow_Click(object sender, RoutedEventArgs e) => ToggleLookTiles(LyricChangeTiles);
+
+    void HoverRow_Click(object sender, RoutedEventArgs e) => ToggleLookTiles(HoverTiles);
 
     void BackdropTile_Click(object sender, RoutedEventArgs e)
     {
@@ -252,11 +261,18 @@ public partial class MainWindow
         RefreshLookPage();
     }
 
+    void HoverTile_Click(object sender, RoutedEventArgs e)
+    {
+        Settings.Hover = (Hover)HoverStrip.Children.IndexOf((UIElement)sender);
+        RefreshLookPage();
+    }
+
     void ToggleLookTiles(Border tiles)
     {
         _openLookTiles = tiles == _openLookTiles ? null : tiles;
         SlideLookTiles(BackdropTiles, BackdropChevron);
         SlideLookTiles(LyricChangeTiles, LyricChangeChevron);
+        SlideLookTiles(HoverTiles, HoverChevron);
     }
 
     void SlideLookTiles(Border tiles, Icon chevron)
@@ -278,7 +294,7 @@ public partial class MainWindow
 
     void LookTiles_SizeChanged(object sender, SizeChangedEventArgs e)
     {
-        LookView.Height = LookHeight + BackdropTiles.ActualHeight + LyricChangeTiles.ActualHeight;
+        LookView.Height = LookHeight;
         if (_view == View.Look) UpdateTargets();
     }
 
@@ -292,28 +308,36 @@ public partial class MainWindow
 
     void RefreshLookPage()
     {
+        PulseText.Text = Pulses[Settings.Pulse];
         SizeText.Text = Settings.Scale + "%";
         GapText.Text = Settings.Gap + " px";
-		PulseText.Text = Pulses[Settings.Pulse];
         SizeSlider.Set(Settings.Scale, LookView.IsVisible);
         GapSlider.Set(Settings.Gap, LookView.IsVisible);
         DotsSegments.Set(Settings.Dots ? 1 : 0, LookView.IsVisible);
         SeekStyleSegments.Set(Settings.LineBar ? 1 : 0, LookView.IsVisible);
+        GlassSwitch.Set(Settings.Glass, LookView.IsVisible);
         ((RadioButton)BackdropStrip.Children[(int)Settings.Backdrop]).IsChecked = true;
         ((RadioButton)LyricChangeStrip.Children[(int)Settings.LyricChange]).IsChecked = true;
-		BackdropText.Text = Settings.Backdrop switch
-		{
-			Backdrop.Matrix => "Матрица",
-			Backdrop.Stars => "Звезды",
-			Backdrop.MatrixAndStars => "Матрица и Звезды",
-			Backdrop.GlowAndStars => "Свечение и Звезды",
-			_ => "Свечение"
-		};
+        ((RadioButton)HoverStrip.Children[(int)Settings.Hover]).IsChecked = true;
+        BackdropText.Text = Settings.Backdrop switch
+        {
+            Backdrop.GlowAndStars => "Свечение и звёзды",
+            Backdrop.Matrix => "Матрица",
+            Backdrop.Stars => "Звёзды",
+            Backdrop.MatrixAndStars => "Матрица и звёзды",
+            _ => "Свечение",
+        };
         LyricChangeText.Text = Settings.LyricChange switch
         {
             LyricChange.Wave => "Волна по буквам",
             LyricChange.Drum => "Барабан по словам",
             _ => "Плавно",
+        };
+        HoverText.Text = Settings.Hover switch
+        {
+            Hover.Magnet => "Магнит",
+            Hover.Flow => "Перетекание",
+            _ => "Диск",
         };
         foreach (RadioButton dot in AccentStrip.Children)
         {

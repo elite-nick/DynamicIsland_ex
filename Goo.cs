@@ -13,12 +13,13 @@ public sealed class Goo : FrameworkElement
     const double Tolerance = 0.02;
     const byte TintedAlpha = 0x8C;
     const double HazeOpacity = 0.14;
+    const byte GlassAlpha = 0x99;
 
     static readonly Color PlainRim = Color.FromArgb(0x20, 0xFF, 0xFF, 0xFF);
     static readonly double[] HazeReach = [2, 3, 4];
     static readonly (double At, double Level)[] FlashFrames = [(0, 0), (0.04, 1), (0.13, 0.3), (0.19, 0.9), (0.5, 0), (1, 0)];
 
-    readonly SolidColorBrush _rim = new(PlainRim);
+    readonly SolidColorBrush _rim = new(PlainRim), _fill = new(Colors.Black);
     readonly Light _beat = new(), _flash = new();
     readonly Pen _edge;
 
@@ -27,7 +28,7 @@ public sealed class Goo : FrameworkElement
 
     public Goo() => _edge = new Pen(_rim, 2 * RimWidth) { LineJoin = PenLineJoin.Round };
 
-	public void Tint(Color? color, Duration time)
+    public void Tint(Color? color, Duration time)
     {
         Color to = color is { } c ? Color.FromArgb(TintedAlpha, c.R, c.G, c.B) : PlainRim;
         _rim.BeginAnimation(SolidColorBrush.ColorProperty, new ColorAnimation(to, time));
@@ -35,6 +36,17 @@ public sealed class Goo : FrameworkElement
         var lit = new ColorAnimation(color ?? Colors.White, time);
         _beat.Edge.BeginAnimation(SolidColorBrush.ColorProperty, lit);
         _beat.Mist.BeginAnimation(SolidColorBrush.ColorProperty, lit);
+    }
+
+    public (Rect Box, double Radius) PillInside => Inside(_pill, _radius);
+
+    public (Rect Box, double Radius) BubbleInside => Inside(_bubble, _bubble.Height / 2);
+
+    public void Thin(bool glass, Duration time, Action thinned)
+    {
+        var fade = new ColorAnimation(Color.FromArgb(glass ? GlassAlpha : byte.MaxValue, 0, 0, 0), time);
+        fade.Completed += (_, _) => thinned();
+        _fill.BeginAnimation(SolidColorBrush.ColorProperty, fade);
     }
 
     public void StartFlashing(Color color, TimeSpan round)
@@ -58,7 +70,7 @@ public sealed class Goo : FrameworkElement
         _flash.Mist.BeginAnimation(Brush.OpacityProperty, null);
     }
 
-	public void Beat(double level)
+    public void Beat(double level)
     {
         level = Math.Clamp(level, 0, 1);
         _beat.Edge.Opacity = level;
@@ -97,7 +109,7 @@ public sealed class Goo : FrameworkElement
         DrawBody(dc, neck != null ? Union(body, neck) : body);
     }
 
-    static Geometry Union(Geometry a, Geometry b) =>
+    public static Geometry Union(Geometry a, Geometry b) =>
         Geometry.Combine(a, b, GeometryCombineMode.Union, null, Tolerance, ToleranceType.Absolute);
 
     void DrawBody(DrawingContext dc, Geometry body)
@@ -108,12 +120,12 @@ public sealed class Goo : FrameworkElement
         outside.Children.Add(new RectangleGeometry(around));
         outside.Children.Add(body);
 
-		dc.PushClip(outside);
+        dc.PushClip(outside);
         dc.DrawGeometry(null, _edge, body);
         dc.DrawGeometry(null, _beat.Line, body);
         dc.DrawGeometry(null, _flash.Line, body);
         dc.Pop();
-        dc.DrawGeometry(Brushes.Black, null, body);
+        dc.DrawGeometry(_fill, null, body);
         foreach (Pen mist in _beat.Mists) dc.DrawGeometry(null, mist, body);
         foreach (Pen mist in _flash.Mists) dc.DrawGeometry(null, mist, body);
     }
@@ -133,18 +145,29 @@ public sealed class Goo : FrameworkElement
 
     static Geometry Outline(Rect rect, double radius)
     {
+        (Rect box, double r) = Inside(rect, radius);
+        return Squircle.Of(box, r);
+    }
+
+    static (Rect Box, double Radius) Inside(Rect rect, double radius)
+    {
+        if (rect.IsEmpty) return (rect, 0);
         rect.Inflate(-Math.Min(RimWidth, rect.Width / 2), -Math.Min(RimWidth, rect.Height / 2));
-        return Squircle.Of(rect, Math.Max(radius - RimWidth, 0));
+        return (rect, Math.Max(radius - RimWidth, 0));
     }
 
     Geometry? CreateNeck()
     {
-        double r1 = _radius - RimWidth, r2 = _bubble.Height / 2 - RimWidth;
         var c1 = new Point(_pill.Right - _radius, _pill.Top + _radius);
         var c2 = new Point(_bubble.Left + _bubble.Height / 2, _bubble.Top + _bubble.Height / 2);
+        return c2.X > c1.X ? Neck(c1, _radius - RimWidth, c2, _bubble.Height / 2 - RimWidth, TearGap) : null;
+    }
+
+    public static Geometry? Neck(Point c1, double r1, Point c2, double r2, double tearGap)
+    {
         Vector between = c2 - c1;
         double d = between.Length, gap = d - r1 - r2;
-        if (r1 <= 0 || r2 <= 0 || between.X <= 0 || d <= Math.Abs(r1 - r2) || gap >= TearGap) return null;
+        if (r1 <= 0 || r2 <= 0 || d <= Math.Abs(r1 - r2) || gap >= tearGap) return null;
 
         double u1 = 0, u2 = 0;
         if (gap < 0)
@@ -153,7 +176,7 @@ public sealed class Goo : FrameworkElement
             u2 = Math.Acos(Math.Clamp((r2 * r2 + d * d - r1 * r1) / (2 * r2 * d), -1, 1));
         }
 
-        double grip = NeckGrip * (1 - Math.Clamp(gap / TearGap, 0, 1));
+        double grip = NeckGrip * (1 - Math.Clamp(gap / tearGap, 0, 1));
         double axis = Math.Atan2(between.Y, between.X), wide = Math.Acos((r1 - r2) / d);
         double a1 = axis + u1 + (wide - u1) * grip, a2 = axis - u1 - (wide - u1) * grip;
         double a3 = axis + Math.PI - u2 - (Math.PI - u2 - wide) * grip, a4 = axis - Math.PI + u2 + (Math.PI - u2 - wide) * grip;

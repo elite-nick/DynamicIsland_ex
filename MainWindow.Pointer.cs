@@ -77,10 +77,11 @@ public partial class MainWindow
         UpdateTargets();
     }
 
-	void Root_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    void Root_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
         if (!_pressed) return;
         _pressed = false;
+
         Grab grab = _grab;
         double pulled = _pull, leant = _leanDrag;
         Vector pace = _clock.Elapsed.TotalSeconds - _pointerAt < PointerRestSeconds ? _pointerSpeed / Math.Max(_userScale.Value, MinScale) : default;
@@ -88,12 +89,12 @@ public partial class MainWindow
 
         Point screenPos = PointToScreen(e.GetPosition(this));
         var targetScreen = System.Windows.Forms.Screen.FromPoint(new System.Drawing.Point((int)screenPos.X, (int)screenPos.Y));
-        var currentScreen = System.Windows.Forms.Screen.FromHandle(new System.Windows.Interop.WindowInteropHelper(this).Handle);
-
-        if (targetScreen.DeviceName != currentScreen.DeviceName)
+        var currentScreen = System.Windows.Forms.Screen.FromHandle(_hwnd);
+        if ((grab is Grab.Pull or Grab.Lean) && targetScreen.DeviceName != currentScreen.DeviceName)
         {
-            this.Left = targetScreen.Bounds.Left + (targetScreen.Bounds.Width - this.Width) / 2;
-            this.Top = targetScreen.Bounds.Top;
+            Settings.TargetMonitor = targetScreen.DeviceName;
+            RefreshMonitorText();
+            CenterOnScreen();
             UpdateTargets();
             return;
         }
@@ -129,8 +130,14 @@ public partial class MainWindow
 
     void ToggleOpen()
     {
+        if (_view == View.Notice && _noticeOpen is { } open)
+        {
+            open();
+            EndTransient();
+            return;
+        }
         if (_ringing || _panel != Panel.None) SelectPanel(Panel.None);
-        else SelectPanel(IsMediaActive || !_countdown.IsActive ? Panel.Player : Panel.Timer);
+        else SelectPanel(IsMediaActive ? Panel.Player : _obs.Recording ? Panel.Record : _countdown.IsActive ? Panel.Timer : Panel.Player);
         UpdateView();
     }
 
@@ -192,6 +199,20 @@ public partial class MainWindow
         _awayTimeout.Start(AwayDuration);
         UpdateView();
         UpdateTargets();
+    }
+
+    void SettingsScroll_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (Native.IsCtrlDown || (_view == View.Look && (SizeRow.IsMouseOver || GapRow.IsMouseOver)))
+        {
+            Root_MouseWheel(sender, e);
+            return;
+        }
+        if (sender is System.Windows.Controls.ScrollViewer scroll)
+        {
+            scroll.ScrollToVerticalOffset(scroll.VerticalOffset - e.Delta / 3.0);
+            e.Handled = true;
+        }
     }
 
     void Root_MouseWheel(object sender, MouseWheelEventArgs e)
