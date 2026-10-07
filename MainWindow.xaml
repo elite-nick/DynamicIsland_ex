@@ -636,7 +636,7 @@
 					<Button x:Name="SwitchSourceButton" Style="{StaticResource IconButton}" Width="44" Height="44" 
 							HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,16,12"
 							Click="SwitchSource_Click" Visibility="Collapsed">
-						<local:Icon Kind="Segments" Width="18" Height="18" Fill="White"/>
+						<local:Icon Kind="Bars" Width="18" Height="18" Fill="White"/>
 					</Button>
                 </Grid>
 
@@ -780,7 +780,8 @@
                 </Grid>
 
                 <Grid x:Name="SettingsView" Width="320" Height="374" HorizontalAlignment="Center" VerticalAlignment="Top">
-                    <local:RowList Margin="10,8,10,0">
+                    <ScrollViewer Margin="10,8,10,0" VerticalScrollBarVisibility="Hidden" HorizontalScrollBarVisibility="Disabled" PanningMode="VerticalOnly">
+					<local:RowList Margin="10,8,10,0">
                         <Button Style="{StaticResource BackButton}" Content="НАСТРОЙКИ" Click="SettingsBack_Click"/>
 						<Button x:Name="MonitorRow" Style="{StaticResource RowButton}" Click="MonitorRow_Click">
 							<Grid>
@@ -789,6 +790,13 @@
 								<StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
 									<TextBlock x:Name="MonitorText" Foreground="{StaticResource Dim}" VerticalAlignment="Center"/>
 								</StackPanel>
+							</Grid>
+						</Button>
+						<Button Style="{StaticResource RowButton}" Click="ShowSeconds_Click">
+							<Grid>
+								<local:Icon Style="{StaticResource RowIcon}" Kind="Clock"/>
+								<TextBlock Style="{StaticResource RowLabel}" Text="Секунды у времени"/>
+								<local:Toggle x:Name="ShowSecondsSwitch" Style="{StaticResource RowSwitch}"/>
 							</Grid>
 						</Button>
                         <Button Style="{StaticResource RowButton}" Click="Lyrics_Click">
@@ -851,6 +859,7 @@
                             </Grid>
                         </Button>
                     </local:RowList>
+					</ScrollViewer>
                 </Grid>
 
                 <Grid x:Name="UpdatePage" Width="320" Height="150" HorizontalAlignment="Center" VerticalAlignment="Top">
@@ -905,20 +914,13 @@
                         <Button x:Name="GapRow" Style="{StaticResource RowButton}">
                             <Grid>
                                 <local:Icon Style="{StaticResource RowIcon}" Kind="Gap"/>
-                                <TextBlock Style="{StaticResource RowLabel}" Text="Отступ от края"/>
+                                <TextBlock Style="{StaticResource RowLabel}" Text="Отступ с края"/>
                                 <local:Scrubber x:Name="GapSlider" Style="{StaticResource RowSlider}"
                                                 Minimum="0" Maximum="24" Step="2" Changed="GapSlider_Changed"/>
                                 <local:Digits x:Name="GapText" Foreground="{StaticResource Dim}"
                                               HorizontalAlignment="Right" VerticalAlignment="Center"/>
                             </Grid>
                         </Button>
-						<Button Style="{StaticResource RowButton}" Click="ShowSeconds_Click">
-							<Grid>
-								<local:Icon Style="{StaticResource RowIcon}" Kind="Clock"/>
-								<TextBlock Style="{StaticResource RowLabel}" Text="Секунды в простое"/>
-								<local:Toggle x:Name="ShowSecondsSwitch" Style="{StaticResource RowSwitch}"/>
-							</Grid>
-						</Button>
 						<Button x:Name="PulseRow" Style="{StaticResource RowButton}" Click="Pulse_Click">
 							<Grid>
 								<local:Icon Style="{StaticResource RowIcon}" Kind="Pulse"/>
