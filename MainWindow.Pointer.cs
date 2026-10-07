@@ -35,6 +35,7 @@ public partial class MainWindow
 
     void Island_MouseLeave(object sender, MouseEventArgs e)
     {
+        if (_grab != Grab.None) return;
         _hovered = _pressed = false;
         UpdateTargets();
         if (_panel != Panel.None) _collapseTimeout.Start(CollapseDelay);
@@ -45,6 +46,7 @@ public partial class MainWindow
         _pressed = true;
         if (_panel == Panel.None && !_ringing && Island.CaptureMouse())
         {
+            BeginMonitorDrag();
             _grab = Grab.Held;
             _grabStart = _pointerLast = e.GetPosition(this);
             _pointerAt = _clock.Elapsed.TotalSeconds;
@@ -56,6 +58,7 @@ public partial class MainWindow
     void Root_MouseMove(object sender, MouseEventArgs e)
     {
         if (_grab == Grab.None) return;
+        if (FollowMonitorDrag()) return;
         Point at = e.GetPosition(this);
         double now = _clock.Elapsed.TotalSeconds, dt = now - _pointerAt;
         if (dt >= PointerSampleSeconds)
@@ -87,14 +90,8 @@ public partial class MainWindow
         Vector pace = _clock.Elapsed.TotalSeconds - _pointerAt < PointerRestSeconds ? _pointerSpeed / Math.Max(_userScale.Value, MinScale) : default;
         ReleaseGrab();
 
-        Point screenPos = PointToScreen(e.GetPosition(this));
-        var targetScreen = System.Windows.Forms.Screen.FromPoint(new System.Drawing.Point((int)screenPos.X, (int)screenPos.Y));
-        var currentScreen = System.Windows.Forms.Screen.FromHandle(_hwnd);
-        if ((grab is Grab.Pull or Grab.Lean) && targetScreen.DeviceName != currentScreen.DeviceName)
+        if (FinishMonitorDrag())
         {
-            Settings.TargetMonitor = targetScreen.DeviceName;
-            RefreshMonitorText();
-            CenterOnScreen();
             UpdateTargets();
             return;
         }
@@ -171,6 +168,7 @@ public partial class MainWindow
     {
         if (_grab == Grab.None) return;
         ReleaseGrab();
+        FinishMonitorDrag();
         _pressed = false;
     }
 

@@ -27,6 +27,8 @@ enum Hover
     Flow,
 }
 
+enum AudioCaptureMode { All, Include, Exclude }
+
 static class Settings
 {
     const string Key = @"Software\DynamicIsland";
@@ -54,6 +56,21 @@ static class Settings
     {
         get => _targetMonitor;
         set => Write(nameof(TargetMonitor), _targetMonitor = value, RegistryValueKind.String);
+    }
+
+    static AudioCaptureMode _audioCapture = (AudioCaptureMode)Math.Clamp(Read(nameof(AudioCapture), 0), 0, 2);
+    static string[] _audioCaptureProcesses = Read<string[]>(nameof(AudioCaptureProcesses), []);
+
+    public static AudioCaptureMode AudioCapture
+    {
+        get => _audioCapture;
+        set => Write(nameof(AudioCapture), (int)(_audioCapture = value));
+    }
+
+    public static string[] AudioCaptureProcesses
+    {
+        get => (string[])_audioCaptureProcesses.Clone();
+        set => Write(nameof(AudioCaptureProcesses), _audioCaptureProcesses = value.Distinct(StringComparer.OrdinalIgnoreCase).ToArray(), RegistryValueKind.MultiString);
     }
 
     public static bool Glass

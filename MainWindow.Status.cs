@@ -39,6 +39,7 @@ public partial class MainWindow
 
     void CheckFullscreen()
     {
+        if (_monitorDragging) return;
         bool hidden = Settings.HideFullscreen && Native.IsForegroundFullscreen(_hwnd);
         if (hidden == _hiddenByFullscreen) return;
         _hiddenByFullscreen = hidden;

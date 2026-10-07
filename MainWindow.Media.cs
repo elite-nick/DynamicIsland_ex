@@ -170,9 +170,14 @@ public partial class MainWindow
         double now = _clock.Elapsed.TotalSeconds;
         bool playing = _media.IsPlaying;
         float[]? bands = _spectrum.Read(_bands) ? _bands : null;
+        if (bands == null && Settings.AudioCapture != AudioCaptureMode.All)
+        {
+            Array.Clear(_bands);
+            bands = _bands;
+        }
         double level = 0;
         
-        if (bands == null)
+        if (bands == null && Settings.AudioCapture == AudioCaptureMode.All)
         {
             float peak = _audio.Peak();
             level = peak < 0 ? PeakFallback : peak;

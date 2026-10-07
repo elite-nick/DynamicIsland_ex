@@ -13,9 +13,9 @@ namespace DynamicIsland;
 
 public partial class MainWindow : Window
 {
-    enum View { Idle, Media, Timer, Record, Volume, Charge, Focus, Toast, Notice, MediaBig, IdleBig, TimerBig, TimerSet, RecordBig, RecordSet, Menu, Settings, Look, Shelf, Update, Loading }
+    enum View { Idle, Media, Timer, Record, Volume, Charge, Focus, Toast, Notice, MediaBig, IdleBig, TimerBig, TimerSet, RecordBig, RecordSet, Menu, Settings, Look, Shelf, Capture, Update, Loading }
 
-    enum Panel { None, Player, Timer, TimerSet, Record, Menu, Settings, Look, Shelf, Update }
+    enum Panel { None, Player, Timer, TimerSet, Record, Menu, Settings, Look, Shelf, Capture, Update }
 
     readonly record struct PillShape(double Width, double Height, double Radius);
 
@@ -37,6 +37,7 @@ public partial class MainWindow : Window
         [View.RecordBig] = new(340, 92, 40),
         [View.RecordSet] = new(320, 92, 40),
         [View.Menu] = new(300, 288, 34),
+        [View.Capture] = new(352, 374, 34),
         [View.Settings] = new(320, 374, 34),
         [View.Look] = new(352, LookHeight, 34),
         [View.Shelf] = new(380, 136, 34),
@@ -58,7 +59,7 @@ public partial class MainWindow : Window
         [View.MediaBig] = new(20, 20, 64, 22, 52, 38, 26, 1),
     };
 
-    static readonly View[] MenuPages = [View.Settings, View.Look, View.TimerSet, View.TimerBig, View.RecordSet, View.RecordBig, View.Shelf];
+    static readonly View[] MenuPages = [View.Capture, View.Settings, View.Look, View.TimerSet, View.TimerBig, View.RecordSet, View.RecordBig, View.Shelf];
 
     const double HostWidth = 620, HostHeight = 520;
     const double CompactMaxHeight = 40;
@@ -121,6 +122,7 @@ public partial class MainWindow : Window
             [View.RecordBig] = RecordBigView,
             [View.RecordSet] = RecordSetView,
             [View.Menu] = MenuView,
+            [View.Capture] = CaptureView,
             [View.Settings] = SettingsView,
             [View.Look] = LookView,
             [View.Shelf] = ShelfView,
@@ -255,6 +257,7 @@ public partial class MainWindow : Window
         });
         UpdateClock();
         UpdateSwitches(false);
+        RefreshCapturePage();
         RefreshLookPage();
         RefreshUpdatePage();
         SyncAccent(false);
@@ -275,6 +278,7 @@ public partial class MainWindow : Window
 
     void CenterOnScreen()
     {
+        StopMonitorMotion();
         try
         {
             var screens = System.Windows.Forms.Screen.AllScreens;
@@ -313,6 +317,8 @@ public partial class MainWindow : Window
 
     void Exit()
     {
+        _spectrum.Dispose();
+        _monitorMoveLoop?.Stop();
         _ticker.Stop();
         _alarm.Stop();
         _glass.Hide();
@@ -338,6 +344,7 @@ public partial class MainWindow : Window
         }
         if (_ticks % ClockUpdateTicks == 0)
         {
+            UpdateCaptureStatus();
             UpdateClock();
             PollPower();
             Native.KeepOnTop(_hwnd);
@@ -354,6 +361,7 @@ public partial class MainWindow : Window
             Panel.Menu => View.Menu,
             Panel.Settings => View.Settings,
             Panel.Look => View.Look,
+            Panel.Capture => View.Capture,
             Panel.Update => View.Update,
             Panel.Shelf => View.Shelf,
             Panel.TimerSet => View.TimerSet,
@@ -423,8 +431,8 @@ public partial class MainWindow : Window
     }
 
     static int MenuDirection(View from, View to) =>
-        from == View.Menu && MenuPages.Contains(to) || (from, to) == (View.Settings, View.Update) ? 1
-        : to == View.Menu && MenuPages.Contains(from) || (from, to) == (View.Update, View.Settings) ? -1 : 0;
+        from == View.Menu && MenuPages.Contains(to) || (from, to) is (View.Settings, View.Update) or (View.Settings, View.Capture) ? 1
+        : to == View.Menu && MenuPages.Contains(from) || (from, to) is (View.Update, View.Settings) or (View.Capture, View.Settings) ? -1 : 0;
 
     PillShape ShapeOf(View view) => view switch
     {

@@ -2,7 +2,7 @@ using System.Runtime.InteropServices;
 
 namespace DynamicIsland;
 
-sealed class SpectrumService
+sealed class SpectrumService : IDisposable
 {
     public const int Bands = SpectrumAnalyzer.Bands;
 
@@ -19,6 +19,29 @@ sealed class SpectrumService
     readonly AutoResetEvent _wake = new(false);
     Thread? _thread;
     volatile bool _active, _failed;
+
+    sealed record CaptureConfig(AudioCaptureMode Mode, string[] Names);
+    CaptureConfig _config = new(Settings.AudioCapture, Settings.AudioCaptureProcesses);
+    CaptureConfig? _applied;
+    ProcessAudioSet? _processAudio;
+    volatile bool _disposed;
+    volatile string _status = "";
+    public string Status => _status;
+
+    public void Configure(AudioCaptureMode mode, string[] names)
+    {
+        if (_disposed) return;
+        Volatile.Write(ref _config, new CaptureConfig(mode, (string[])names.Clone()));
+        lock (_lock) Array.Clear(_bands);
+        _wake.Set();
+    }
+
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        _wake.Set();
+    }
 
     IAudioClient? _client;
     IAudioCaptureClient? _capture;
@@ -37,7 +60,7 @@ sealed class SpectrumService
         get => _active;
         set
         {
-            if (_active == value) return;
+            if (_disposed || _active == value) return;
             _active = value;
             if (!value) return;
             if (_thread == null)
@@ -51,7 +74,7 @@ sealed class SpectrumService
 
     public bool Read(float[] bands)
     {
-        if (_failed) return false;
+        if (_failed && Volatile.Read(ref _config).Mode == AudioCaptureMode.All) return false;
         lock (_lock) Array.Copy(_bands, bands, Bands);
         return true;
     }
@@ -59,7 +82,7 @@ sealed class SpectrumService
     void CaptureLoop()
     {
         long lastActive = Environment.TickCount64, lastCheck = 0;
-        while (true)
+        while (!_disposed)
         {
             long now = Environment.TickCount64;
             if (_active) lastActive = now;
@@ -72,13 +95,34 @@ sealed class SpectrumService
 
             try
             {
+                CaptureConfig config = Volatile.Read(ref _config);
+                if (!ReferenceEquals(config, _applied))
+                {
+                    Close();
+                    _applied = config;
+                    _status = "";
+                    _failed = false;
+                }
+                if (config.Mode != AudioCaptureMode.All && !(config.Mode == AudioCaptureMode.Exclude && config.Names.Length == 0))
+                {
+                    _processAudio ??= new ProcessAudioSet();
+                    float[] bands = _processAudio.Read(config.Mode, config.Names);
+                    _status = _processAudio.Status;
+                    lock (_lock)
+                    {
+                        // Never publish data from a configuration replaced while opening COM clients.
+                        if (ReferenceEquals(config, Volatile.Read(ref _config))) Array.Copy(bands, _bands, Bands);
+                    }
+                    _wake.WaitOne(PollMs);
+                    continue;
+                }
                 if (_capture == null)
                 {
                     _failed = !Open();
                     if (_failed)
                     {
                         Close();
-                        Thread.Sleep(RetryMs);
+                        _wake.WaitOne(RetryMs);
                         continue;
                     }
                     lastCheck = now;
@@ -96,7 +140,7 @@ sealed class SpectrumService
                 if (!Drain())
                 {
                     Close();
-                    Thread.Sleep(DrainRetryMs);
+                    _wake.WaitOne(DrainRetryMs);
                     continue;
                 }
                 Analyze();
@@ -105,12 +149,15 @@ sealed class SpectrumService
             {
                 App.Log(ex);
                 _failed = true;
+                _status = "Захват звука недоступен. Повторяем подключение…";
                 Close();
-                Thread.Sleep(RetryMs);
+                _wake.WaitOne(RetryMs);
                 continue;
             }
-            Thread.Sleep(PollMs);
+            _wake.WaitOne(PollMs);
         }
+        Close();
+        _wake.Dispose();
     }
 
     bool Open()
@@ -158,6 +205,8 @@ sealed class SpectrumService
 
     void Close()
     {
+        _processAudio?.Dispose();
+        _processAudio = null;
         try { _client?.Stop(); }
         catch { }
         if (_capture != null) Marshal.ReleaseComObject(_capture);
@@ -230,6 +279,9 @@ sealed class SpectrumService
         _hasNewData = false;
 
         _analyzer!.Analyze(_scratch);
-        lock (_lock) Array.Copy(_scratch, _bands, Bands);
+        lock (_lock)
+        {
+            if (ReferenceEquals(_applied, Volatile.Read(ref _config))) Array.Copy(_scratch, _bands, Bands);
+        }
     }
 }
