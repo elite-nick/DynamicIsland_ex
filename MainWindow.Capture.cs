@@ -20,7 +20,8 @@ public partial class MainWindow
 
     void CaptureMode_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is not RadioButton { Tag: string tag } || !int.TryParse(tag, out int mode)) return;
+        int mode = CaptureModeSegments.PickUnderPointer();
+        if (mode != (int)AudioCaptureMode.All && !ProcessLoopback.Supported) return;
         Settings.AudioCapture = (AudioCaptureMode)mode;
         _spectrum.Configure(Settings.AudioCapture, Settings.AudioCaptureProcesses);
         RefreshCapturePage();
@@ -29,10 +30,7 @@ public partial class MainWindow
     void RefreshCapturePage()
     {
         var mode = Settings.AudioCapture;
-        CaptureAll.IsChecked = mode == AudioCaptureMode.All;
-        CaptureInclude.IsChecked = mode == AudioCaptureMode.Include;
-        CaptureExclude.IsChecked = mode == AudioCaptureMode.Exclude;
-        CaptureInclude.IsEnabled = CaptureExclude.IsEnabled = ProcessLoopback.Supported;
+        CaptureModeSegments.Set((int)mode, CaptureView.IsVisible);
         CaptureHint.Text = !ProcessLoopback.Supported
             ? "Выбор приложений требует Windows 10 21H2 или новее."
             : mode == AudioCaptureMode.All ? "Звук всех приложений на устройстве вывода по умолчанию."

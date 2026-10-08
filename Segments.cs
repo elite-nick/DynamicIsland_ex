@@ -19,6 +19,13 @@ public sealed class Segments : FrameworkElement
     readonly FrameLoop _loop;
     string[] _labels = [];
     int _picked;
+    bool _wrapLabels;
+
+    public bool WrapLabels
+    {
+        get => _wrapLabels;
+        set { _wrapLabels = value; InvalidateMeasure(); InvalidateVisual(); }
+    }
 
     public Segments()
     {
@@ -62,7 +69,8 @@ public sealed class Segments : FrameworkElement
     protected override Size MeasureOverride(Size available)
     {
         double widest = _labels.Length == 0 ? 0 : _labels.Max(label => Format(label, Brushes.White).Width);
-        return new Size(Math.Ceiling(widest + CellPadding * 2) * _labels.Length + KnobInset * 2, 0);
+        double width = Math.Ceiling(widest + CellPadding * 2) * _labels.Length + KnobInset * 2;
+        return new Size(WrapLabels ? Math.Min(width, available.Width) : width, 0);
     }
 
     double CellWidth(double width) => (width - KnobInset * 2) / Math.Max(_labels.Length, 1);
@@ -91,7 +99,15 @@ public sealed class Segments : FrameworkElement
         {
             double near = 1 - Math.Clamp(Math.Abs(_at.Value - i), 0, 1);
             FormattedText label = Format(_labels[i], Shades.White(RestingText + (1 - RestingText) * near));
-            dc.DrawText(label, new Point(KnobInset + cell * (i + 0.5) - label.Width / 2, (h - label.Height) / 2));
+            if (WrapLabels)
+            {
+                label.MaxTextWidth = Math.Max(1, cell - CellPadding * 2);
+                label.MaxLineCount = 2;
+                label.TextAlignment = TextAlignment.Center;
+                dc.DrawText(label, new Point(KnobInset + cell * i + CellPadding, (h - label.Height) / 2));
+            }
+            else
+                dc.DrawText(label, new Point(KnobInset + cell * (i + 0.5) - label.Width / 2, (h - label.Height) / 2));
         }
     }
 

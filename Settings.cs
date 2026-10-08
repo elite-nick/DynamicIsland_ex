@@ -27,6 +27,13 @@ enum Hover
     Flow,
 }
 
+enum SeekHover
+{
+    Magnifier,
+    Lift,
+    Wave,
+}
+
 enum AudioCaptureMode { All, Include, Exclude }
 
 static class Settings
@@ -44,6 +51,7 @@ static class Settings
     static bool _lineBar = ReadSwitch(nameof(LineBar));
     static Backdrop _backdrop = (Backdrop)Math.Clamp(Read(nameof(Backdrop), 0), 0, (int)Backdrop.GlowAndStars);
     static LyricChange _lyricChange = (LyricChange)Math.Clamp(Read(nameof(LyricChange), (int)LyricChange.Wave), 0, (int)LyricChange.Drum);
+    static SeekHover _seekHover = (SeekHover)Math.Clamp(Read(nameof(SeekHover), 0), 0, (int)SeekHover.Wave);
     static int _scale = Math.Clamp(Read(nameof(Scale), DefaultScale), MinScale, MaxScale);
     static int _gap = Math.Clamp(Read(nameof(Gap), DefaultGap), 0, MaxGap);
     static int _accent = Read(nameof(Accent), 0);
@@ -107,6 +115,12 @@ static class Settings
     {
         get => _lyricChange;
         set => Write(nameof(LyricChange), (int)(_lyricChange = value));
+    }
+
+    public static SeekHover SeekHover
+    {
+        get => _seekHover;
+        set => Write(nameof(SeekHover), (int)(_seekHover = value));
     }
 
     public static bool Lyrics

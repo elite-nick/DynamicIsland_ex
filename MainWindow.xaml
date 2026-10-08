@@ -579,10 +579,9 @@
                         <Border x:Name="SeekArea" Grid.Column="1" Background="Transparent" Cursor="Hand"
                                 MouseLeftButtonDown="Seek_MouseLeftButtonDown" MouseMove="Seek_MouseMove"
                                 MouseLeftButtonUp="Seek_MouseLeftButtonUp" LostMouseCapture="Seek_LostMouseCapture">
-                            <Grid x:Name="SeekBar" Height="6" VerticalAlignment="Center">
-                                <Border x:Name="SeekBack" CornerRadius="3" Background="#33FFFFFF"/>
-                                <Border x:Name="SeekFill" CornerRadius="3" Background="White" HorizontalAlignment="Left" Width="0"/>
-                                <local:LineBar x:Name="SeekLines" Opacity="0"/>
+                            <Grid>
+                                <local:LineBar x:Name="SeekPlain" Solid="True" IsHitTestVisible="False"/>
+                                <local:LineBar x:Name="SeekLines" Opacity="0" IsHitTestVisible="False"/>
                             </Grid>
                         </Border>
                         <local:Digits x:Name="RemText" Grid.Column="2" Text="–:––" FontSize="11" Foreground="{StaticResource Dim}"
@@ -936,11 +935,11 @@
                             <RowDefinition Height="*"/>
                         </Grid.RowDefinitions>
                         <Button Style="{StaticResource BackButton}" Content="ЗАХВАТ ЗВУКА ДЛЯ ЭКВАЛАЙЗЕРА" Click="CaptureBack_Click"/>
-                        <StackPanel Grid.Row="1">
-                            <RadioButton x:Name="CaptureAll" Content="Всех приложений" Foreground="White" Margin="4,5" Click="CaptureMode_Click" Tag="0" GroupName="CaptureMode"/>
-                            <RadioButton x:Name="CaptureInclude" Content="Только указанных" Foreground="White" Margin="4,5" Click="CaptureMode_Click" Tag="1" GroupName="CaptureMode"/>
-                            <RadioButton x:Name="CaptureExclude" Content="Кроме указанных" Foreground="White" Margin="4,5" Click="CaptureMode_Click" Tag="2" GroupName="CaptureMode"/>
-                        </StackPanel>
+                        <Button Grid.Row="1" Style="{StaticResource RowButton}" Height="54"
+                                Click="CaptureMode_Click" AutomationProperties.Name="Режим захвата звука">
+                            <local:Segments x:Name="CaptureModeSegments" Height="44" HorizontalAlignment="Stretch"
+                                            WrapLabels="True" Labels="Всех приложений|Только указанных|Кроме указанных"/>
+                        </Button>
                         <TextBlock x:Name="CaptureHint" Grid.Row="2" Foreground="{StaticResource Dim}" FontSize="11" TextWrapping="Wrap" Margin="4,6,4,8"/>
                         <Grid x:Name="CaptureProcessesPanel" Grid.Row="3">
                             <Grid.RowDefinitions><RowDefinition Height="32"/><RowDefinition Height="*"/></Grid.RowDefinitions>
@@ -1039,6 +1038,13 @@
                                 <local:Icon Style="{StaticResource RowIcon}" Kind="Segments"/>
                                 <TextBlock Style="{StaticResource RowLabel}" Text="Полоса трека"/>
                                 <local:Segments x:Name="SeekStyleSegments" Style="{StaticResource RowSegments}" Labels="Сплошная|По строкам"/>
+                            </Grid>
+                        </Button>
+                        <Button Style="{StaticResource RowButton}" Click="SeekHover_Click">
+                            <Grid>
+                                <local:Icon Style="{StaticResource RowIcon}" Kind="Bulge"/>
+                                <TextBlock Style="{StaticResource RowLabel}" Text="Под курсором"/>
+                                <local:Segments x:Name="SeekHoverSegments" Style="{StaticResource RowSegments}" Labels="Лупа|Строка|Волна"/>
                             </Grid>
                         </Button>
                         <Button Style="{StaticResource RowButton}" Click="BackdropRow_Click">
