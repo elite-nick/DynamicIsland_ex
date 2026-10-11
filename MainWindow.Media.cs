@@ -161,12 +161,18 @@ public partial class MainWindow
 
     void SyncEq()
     {
-        _spectrum.Active = IsEqVisible && _media.IsPlaying;
-        if (IsEqVisible) _eqLoop.Start();
+        bool preview = _view == View.Capture;
+        _spectrum.Active = preview || (IsEqVisible && _media.IsPlaying);
+        if (IsEqVisible || preview) _eqLoop.Start();
     }
 
 	bool AdvanceEq(double dt)
     {
+        if (_view == View.Capture)
+        {
+            AdvanceThresholdPreview(dt);
+            return true;
+        }
         double now = _clock.Elapsed.TotalSeconds;
         bool playing = _media.IsPlaying;
         float[]? bands = _spectrum.Read(_bands) ? _bands : null;
@@ -180,7 +186,8 @@ public partial class MainWindow
         if (bands == null && Settings.AudioCapture == AudioCaptureMode.All)
         {
             float peak = _audio.Peak();
-            level = peak < 0 ? PeakFallback : peak;
+            level = peak < 0 ? PeakFallback : Math.Clamp(peak *
+                Math.Pow(10, (Settings.DefaultEqualizerThreshold - Settings.EqualizerThreshold) / 20.0), 0, 1);
         }
 
         bool moving = Eq.Tick(bands, level, playing, now, dt);

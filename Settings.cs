@@ -42,6 +42,22 @@ static class Settings
     const int MinScale = 85, MaxScale = 130, MaxGap = 24;
     const int DefaultScale = 100, DefaultGap = 8;
 
+    public const int DefaultEqualizerThreshold = -70;
+    public const int MinEqualizerThreshold = -100, MaxEqualizerThreshold = -40;
+    static int _equalizerThreshold = Math.Clamp(Read(nameof(EqualizerThreshold), DefaultEqualizerThreshold),
+        MinEqualizerThreshold, MaxEqualizerThreshold);
+
+    public static int EqualizerThreshold
+    {
+        get => _equalizerThreshold;
+        set
+        {
+            int next = Math.Clamp(value, MinEqualizerThreshold, MaxEqualizerThreshold);
+            if (next == _equalizerThreshold) return;
+            Write(nameof(EqualizerThreshold), _equalizerThreshold = next);
+        }
+    }
+
     static bool _lyrics = ReadSwitch(nameof(Lyrics)), _lyricEffects = ReadSwitch(nameof(LyricEffects));
     static bool _network = ReadSwitch(nameof(Network)), _hideFullscreen = ReadSwitch(nameof(HideFullscreen));
     static bool _rim = ReadSwitch(nameof(Rim)), _appVolume = ReadSwitch(nameof(AppVolume));

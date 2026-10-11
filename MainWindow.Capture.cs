@@ -29,6 +29,7 @@ public partial class MainWindow
 
     void RefreshCapturePage()
     {
+        RefreshThreshold();
         var mode = Settings.AudioCapture;
         CaptureModeSegments.Set((int)mode, CaptureView.IsVisible);
         CaptureHint.Text = !ProcessLoopback.Supported

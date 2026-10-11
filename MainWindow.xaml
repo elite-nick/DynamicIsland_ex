@@ -764,7 +764,7 @@
                 </Grid>
 
                 <Grid x:Name="RecordSetView" Width="320" Height="92" HorizontalAlignment="Center" VerticalAlignment="Top">
-                    <StackPanel Margin="26,0,20,2" VerticalAlignment="Center" HorizontalAlignment="Left">
+                    <StackPanel x:Name="RecordSetWords" Margin="26,0,26,2" VerticalAlignment="Center" HorizontalAlignment="Left">
                         <TextBlock x:Name="RecordSetCaption" Text="OBS" FontSize="12" Opacity="0.8" TextTrimming="CharacterEllipsis"/>
                         <TextBlock x:Name="RecordSetTitle" Text="Не пишет" FontSize="21" FontWeight="SemiBold"
                                    FontFamily="{StaticResource Display}" Margin="0,1,0,0" TextTrimming="CharacterEllipsis"/>
@@ -932,6 +932,7 @@
                             <RowDefinition Height="32"/>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*"/>
                         </Grid.RowDefinitions>
                         <Button Style="{StaticResource BackButton}" Content="ЗАХВАТ ЗВУКА ДЛЯ ЭКВАЛАЙЗЕРА" Click="CaptureBack_Click"/>
@@ -941,7 +942,24 @@
                                             WrapLabels="True" Labels="Всех приложений|Только указанных|Кроме указанных"/>
                         </Button>
                         <TextBlock x:Name="CaptureHint" Grid.Row="2" Foreground="{StaticResource Dim}" FontSize="11" TextWrapping="Wrap" Margin="4,6,4,8"/>
-                        <Grid x:Name="CaptureProcessesPanel" Grid.Row="3">
+                        <StackPanel Grid.Row="3" Margin="4,0,4,10">
+                            <Grid Margin="0,0,0,4">
+                                <TextBlock Text="Порог" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="ThresholdValue" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{StaticResource Dim}"/>
+                                <Button Content="Сброс" Style="{StaticResource ChipButton}" HorizontalAlignment="Right"
+                                        Padding="8,3" Click="ThresholdReset_Click" ToolTip="Вернуть стандартный порог: −70 дБ"/>
+                            </Grid>
+                            <Slider x:Name="ThresholdSlider" Minimum="-100" Maximum="-40" Value="-70"
+                                    TickFrequency="1" IsSnapToTickEnabled="True" SmallChange="1" LargeChange="5"
+                                    ValueChanged="ThresholdSlider_ValueChanged" Height="24"
+                                    AutomationProperties.Name="Порог" ToolTip="Левее — чувствительнее к тихому звуку"/>
+                            <ProgressBar x:Name="ThresholdLevel" Minimum="-100" Maximum="-40" Value="-100"
+                                         Height="5" Margin="0,2,0,4" Foreground="#43B581" Background="#34363C"
+                                         BorderThickness="0" IsHitTestVisible="False"/>
+                            <TextBlock x:Name="ThresholdAudioText" FontSize="10" Foreground="{StaticResource Dim}"/>
+                            <TextBlock Text="Тихий звук: сдвиньте порог влево." FontSize="10" Margin="0,3,0,0" Foreground="{StaticResource Dim}"/>
+                        </StackPanel>
+                        <Grid x:Name="CaptureProcessesPanel" Grid.Row="4">
                             <Grid.RowDefinitions><RowDefinition Height="32"/><RowDefinition Height="*"/></Grid.RowDefinitions>
                             <Button Style="{StaticResource ChipButton}" Content="Обновить список процессов" Click="CaptureRefresh_Click" Margin="2,0,2,4"/>
                             <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
