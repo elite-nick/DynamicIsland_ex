@@ -40,7 +40,7 @@ public partial class MainWindow
     void CheckFullscreen()
     {
         if (_monitorDragging) return;
-        bool hidden = Settings.HideFullscreen && Native.IsForegroundFullscreen(_hwnd);
+        bool hidden = Settings.HideFullscreen && !_pickingArea && Native.IsForegroundFullscreen(_hwnd);
         if (hidden == _hiddenByFullscreen) return;
         _hiddenByFullscreen = hidden;
         UpdateTargets();
@@ -175,7 +175,7 @@ public partial class MainWindow
 
     void PollDoNotDisturb()
     {
-        if (Native.IsDoNotDisturbOn() is not bool quiet || quiet == _doNotDisturb) return;
+        if (IsFocusUnsettled || Native.IsDoNotDisturbOn() is not bool quiet || quiet == _doNotDisturb) return;
         bool first = _doNotDisturb == null;
         _doNotDisturb = quiet;
         InfoFocus.SetVisible(quiet);

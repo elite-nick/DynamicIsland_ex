@@ -71,6 +71,7 @@ static class Native
     static extern bool SetWindowPos(IntPtr hwnd, IntPtr after, int x, int y, int cx, int cy, uint flags);
 
     [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr hwnd);
     [DllImport("user32.dll")] static extern IntPtr GetDesktopWindow();
     [DllImport("user32.dll")] static extern IntPtr GetShellWindow();
     [DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr hwnd, out RECT rect);
@@ -106,6 +107,20 @@ static class Native
     {
         long style = GetWindowLongPtr(hwnd, GWL_EXSTYLE).ToInt64();
         SetWindowLongPtr(hwnd, GWL_EXSTYLE, new IntPtr(style | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE));
+    }
+
+    public static IntPtr ForegroundWindow => GetForegroundWindow();
+
+    public static void RestoreForeground(IntPtr owner, IntPtr previous)
+    {
+        if (previous != IntPtr.Zero && previous != owner && GetForegroundWindow() == owner)
+            SetForegroundWindow(previous);
+    }
+
+    public static void AllowTextInput(IntPtr hwnd, bool allow)
+    {
+        long style = GetWindowLongPtr(hwnd, GWL_EXSTYLE).ToInt64();
+        SetWindowLongPtr(hwnd, GWL_EXSTYLE, new IntPtr(allow ? style & ~WS_EX_NOACTIVATE : style | WS_EX_NOACTIVATE));
     }
 
     public static IntPtr CreateBackdropWindow()

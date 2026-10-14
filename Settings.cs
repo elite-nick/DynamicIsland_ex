@@ -20,6 +20,19 @@ enum LyricChange
     Drum,
 }
 
+[Flags]
+enum LyricSource
+{
+    Lrclib = 1,
+    Deezer = 2,
+    NetEase = 4,
+    QqMusic = 8,
+    Kugou = 16,
+    Paxsenix = 32,
+    Usual = Lrclib | Deezer | NetEase | QqMusic | Kugou,
+    All = Usual | Paxsenix,
+}
+
 enum Hover
 {
     Disc,
@@ -63,10 +76,42 @@ static class Settings
     static bool _rim = ReadSwitch(nameof(Rim)), _appVolume = ReadSwitch(nameof(AppVolume));
     static bool _glass = ReadSwitch(nameof(Glass), false);
     static Hover _hover = (Hover)Math.Clamp(Read(nameof(Hover), 0), 0, (int)Hover.Flow);
+    static bool _weather = ReadSwitch(nameof(Weather));
+    static bool _weatherManual = ReadSwitch(nameof(WeatherManual), false);
+    static WeatherPlace? _weatherPlace = ReadWeatherPlace();
+
+    public static bool WeatherManual
+    {
+        get => _weatherManual;
+        set => Write(nameof(WeatherManual), _weatherManual = value);
+    }
+
+    public static WeatherPlace? WeatherPlace
+    {
+        get => _weatherPlace;
+        set
+        {
+            if (value is not { IsValid: true }) return;
+            _weatherPlace = value;
+            Write(nameof(WeatherPlace), System.Text.Json.JsonSerializer.Serialize(value), RegistryValueKind.String);
+        }
+    }
+
+    static WeatherPlace? ReadWeatherPlace()
+    {
+        try
+        {
+            var place = System.Text.Json.JsonSerializer.Deserialize<WeatherPlace>(Read(nameof(WeatherPlace), ""));
+            return place is { IsValid: true } ? place : null;
+        }
+        catch { return null; }
+    }
+
     static bool _dots = ReadSwitch(nameof(Dots), false);
     static bool _lineBar = ReadSwitch(nameof(LineBar));
     static Backdrop _backdrop = (Backdrop)Math.Clamp(Read(nameof(Backdrop), 0), 0, (int)Backdrop.GlowAndStars);
     static LyricChange _lyricChange = (LyricChange)Math.Clamp(Read(nameof(LyricChange), (int)LyricChange.Wave), 0, (int)LyricChange.Drum);
+    static LyricSource _lyricSources = Known((LyricSource)Read(nameof(LyricSources), (int)LyricSource.Usual));
     static SeekHover _seekHover = (SeekHover)Math.Clamp(Read(nameof(SeekHover), 0), 0, (int)SeekHover.Wave);
     static int _scale = Math.Clamp(Read(nameof(Scale), DefaultScale), MinScale, MaxScale);
     static int _gap = Math.Clamp(Read(nameof(Gap), DefaultGap), 0, MaxGap);
@@ -133,6 +178,12 @@ static class Settings
         set => Write(nameof(LyricChange), (int)(_lyricChange = value));
     }
 
+    public static LyricSource LyricSources
+    {
+        get => _lyricSources;
+        set => Write(nameof(LyricSources), (int)(_lyricSources = Known(value)));
+    }
+
     public static SeekHover SeekHover
     {
         get => _seekHover;
@@ -167,6 +218,12 @@ static class Settings
     {
         get => _network;
         set => Write(nameof(Network), _network = value);
+    }
+
+    public static bool Weather
+    {
+        get => _weather;
+        set => Write(nameof(Weather), _weather = value);
     }
 
     public static bool HideFullscreen
@@ -221,6 +278,8 @@ static class Settings
     get => _pulse;
     set => Write(nameof(Pulse), _pulse = Math.Clamp(value, 0, 3));
 	}
+
+    static LyricSource Known(LyricSource sources) => (sources & LyricSource.All) == 0 ? LyricSource.Usual : sources & LyricSource.All;
 
     static bool ReadSwitch(string name, bool fallback = true) => Read(name, fallback ? 1 : 0) != 0;
 

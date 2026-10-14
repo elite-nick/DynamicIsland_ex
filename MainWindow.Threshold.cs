@@ -11,15 +11,15 @@ public partial class MainWindow
     void RefreshThreshold()
     {
         _refreshingThreshold = true;
-        ThresholdSlider.Value = Settings.EqualizerThreshold;
+        ThresholdSlider.Set(Settings.EqualizerThreshold, CaptureView.IsVisible);
         ThresholdValue.Text = $"{Settings.EqualizerThreshold} дБ";
         _refreshingThreshold = false;
     }
 
-    void ThresholdSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    void ThresholdSlider_Changed(object? sender, EventArgs e)
     {
         if (!IsLoaded || _refreshingThreshold || ThresholdValue == null) return;
-        Settings.EqualizerThreshold = (int)Math.Round(e.NewValue);
+        Settings.EqualizerThreshold = (int)Math.Round(ThresholdSlider.Value);
         ThresholdValue.Text = $"{Settings.EqualizerThreshold} дБ";
     }
 
