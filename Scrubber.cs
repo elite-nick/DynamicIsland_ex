@@ -33,7 +33,12 @@ public sealed class Scrubber : FrameworkElement
     public Scrubber()
     {
         _loop = new FrameLoop(Advance);
+        Cursor = System.Windows.Input.Cursors.Hand;
         Loaded += (_, _) => AttachToRow();
+        MouseLeftButtonDown += OnStandaloneDown;
+        MouseMove += OnStandaloneMove;
+        MouseLeftButtonUp += OnStandaloneUp;
+        LostMouseCapture += (_, _) => { if (_row == null) _dragging = false; };
     }
 
     public event EventHandler? Changed;
@@ -74,6 +79,27 @@ public sealed class Scrubber : FrameworkElement
             row.LostMouseCapture += (_, _) => _dragging = false;
             return;
         }
+    }
+
+    void OnStandaloneDown(object sender, MouseButtonEventArgs e)
+    {
+        if (_row != null) return;
+        OnRowDown(sender, e);
+        if (_dragging) { CaptureMouse(); e.Handled = true; }
+    }
+
+    void OnStandaloneMove(object sender, MouseEventArgs e)
+    {
+        if (_row == null) OnRowMove(sender, e);
+    }
+
+    void OnStandaloneUp(object sender, MouseButtonEventArgs e)
+    {
+        if (_row != null) return;
+        _dragging = false;
+        if (IsMouseCaptured) ReleaseMouseCapture();
+        _loop.Start();
+        e.Handled = true;
     }
 
     void OnRowDown(object sender, MouseButtonEventArgs e)

@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Effects;
@@ -37,10 +38,12 @@ public partial class MainWindow
     }
 
     readonly BitmapCache _lyricCache = new();
+    readonly FrameLoop _partLoop;
     LyricsService.Line[] _lyricLines = [];
     int _lyricIndex = -1;
     string _lyricTitle = "";
     bool _lyricShowsTitle;
+    bool _lyricTitleAutoScroll;
     double _compactMediaWidth = CompactMediaWidth;
     CompactLyric _lyricBlock;
     LyricsService.Line[] _playerLines = [];
@@ -90,7 +93,8 @@ public partial class MainWindow
         TimeSpan end = index + 1 < lines.Length ? lines[index + 1].Time : _media.Duration;
         double seconds = (end - at).TotalSeconds;
         bool named = text.Length == 0 && (index < 0 || seconds >= LyricGapSeconds);
-        if (ReferenceEquals(lines, _lyricLines) && index == _lyricIndex && (!named || title == _lyricTitle)) return;
+        if (ReferenceEquals(lines, _lyricLines) && index == _lyricIndex
+            && (!named || (title == _lyricTitle && _lyricTitleAutoScroll == Settings.SongTitleAutoScroll))) return;
 
         _lyricLines = lines;
         _lyricIndex = index;
@@ -101,20 +105,28 @@ public partial class MainWindow
     void ShowLyric(string text, double seconds, bool snap, bool named)
     {
         CompactLyric old = _lyricBlock;
-        if (text == old.Text && (text.Length == 0 || (named && _lyricShowsTitle))) return;
+        bool scrollTitle = named && Settings.SongTitleAutoScroll;
+        if (text == old.Text && (text.Length == 0
+            || (named && _lyricShowsTitle && _lyricTitleAutoScroll == scrollTitle))) return;
         CompactLyric next = _lyricBlock = old == LyricA ? LyricB : LyricA;
         _lyricShowsTitle = named;
+        _lyricTitleAutoScroll = scrollTitle;
 
         old.Leave(snap);
+        // CompactLyric.Fit() used to replace overflowing song titles with an
+        // ellipsis before scrolling could see the rest. Keep that legacy
+        // behavior only when automatic title scrolling is switched off.
         next.Show(text, named ? _dim : Brushes.White,
-            named ? TrackNameWidth - LyricInset - 2 * LyricFadeEdge : double.PositiveInfinity, Settings.LyricChange);
+            named && !scrollTitle ? TrackNameWidth - LyricInset - 2 * LyricFadeEdge : double.PositiveInfinity,
+            Settings.LyricChange);
         next.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         double width = next.DesiredSize.Width;
         Canvas.SetTop(next, Math.Round((LyricBox.Height - next.DesiredSize.Height) / 2));
 
         _compactMediaWidth = text.Length == 0
             ? CompactMediaWidth
-            : Math.Clamp(width + 2 * LyricFadeEdge + LyricInset, CompactMediaWidth, MaxCompactMediaWidth);
+            : Math.Clamp(width + 2 * LyricFadeEdge + LyricInset, CompactMediaWidth,
+                named ? TrackNameWidth : MaxCompactMediaWidth);
         next.IslandWidth = _compactMediaWidth;
         CentreLyrics();
         double box = _compactMediaWidth - LyricInset;
@@ -123,8 +135,11 @@ public partial class MainWindow
         UpdateTargets();
 
         next.Offset.X = overflow > 0 ? LyricFadeEdge : (box - width) / 2;
-        next.Offset.BeginAnimation(TranslateTransform.XProperty, overflow > 0 ? CreateLyricScroll(overflow, seconds) : null);
+        next.Offset.BeginAnimation(TranslateTransform.XProperty, overflow > 0
+            ? scrollTitle ? CreateTitleScroll(overflow, LyricFadeEdge) : CreateLyricScroll(overflow, seconds)
+            : null);
         next.Enter();
+        StirLyrics();
     }
 
     void CentreLyrics()
@@ -137,7 +152,7 @@ public partial class MainWindow
 
     static DoubleAnimationUsingKeyFrames CreateLyricScroll(double overflow, double seconds)
     {
-        double hold = Math.Min(0.6, seconds * 0.2);
+        double hold = Math.Clamp(seconds * 0.2, 0, 0.6);
         double run = Math.Min(overflow / LyricScrollSpeed, Math.Max(seconds - hold - 0.5, 0.6));
         return Delayed(LyricFadeEdge, LyricFadeEdge - overflow, TimeSpan.FromSeconds(hold), TimeSpan.FromSeconds(run),
             new SineEase { EasingMode = EasingMode.EaseInOut });
@@ -191,6 +206,7 @@ public partial class MainWindow
         int lead = index + (up ? -1 : 1);
         double now = _clock.Elapsed.TotalSeconds;
         _playerScroll = to;
+        StirLyrics();
         for (int i = 0; i < _playerRows.Length; i++)
         {
             PlayerLine line = _playerRows[i];
@@ -230,6 +246,25 @@ public partial class MainWindow
         _playerScrolling = rolling;
     }
 
+    void StirLyrics() => _partLoop.Start();
+
+    bool AdvanceLyricParting(double dt)
+    {
+        bool parting = _hovered && Settings.LyricParting;
+        bool overPlayer = parting && _view == View.MediaBig, overCompact = parting && _view == View.Media;
+        bool moving = overPlayer && _playerScrolling;
+        int sung = Math.Max(_playerIndex, 0);
+        for (int i = 0; i < _playerRows.Length; i++)
+        {
+            if (Math.Abs(i - sung) > VisibleLineRange) continue;
+            Lyric row = _playerRows[i].Row;
+            moving |= row.Part(overPlayer ? Mouse.GetPosition(row) : null, dt);
+        }
+        foreach (CompactLyric line in new[] { LyricA, LyricB })
+            moving |= line.Part(overCompact && line == _lyricBlock ? Mouse.GetPosition(line) : null, dt);
+        return moving;
+    }
+
     static ScaleTransform LineScaleOf(Lyric row) => (ScaleTransform)((TransformGroup)row.RenderTransform).Children[0];
 
     static TranslateTransform LineOffsetOf(Lyric row) => (TranslateTransform)((TransformGroup)row.RenderTransform).Children[1];
@@ -248,6 +283,13 @@ public partial class MainWindow
             };
         }
         PlayerLyricWait.BeginAnimation(OpacityProperty, fade);
+    }
+
+    void RebuildPlayerLyrics()
+    {
+        _playerIndex = -1;
+        BuildPlayerLyrics(_playerLines);
+        if (_view == View.MediaBig) UpdatePlayerLyrics(true);
     }
 
     void BuildPlayerLyrics(LyricsService.Line[] lines)

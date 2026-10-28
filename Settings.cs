@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Windows.Media;
 using Microsoft.Win32;
 
@@ -9,8 +10,8 @@ enum Backdrop
     Glow = 0,
     Matrix = 1,
     Stars = 2,
-	MatrixAndStars = 3,
-    GlowAndStars = 4
+    MatrixAndStars = Matrix | Stars,
+    GlowAndStars = 4,
 }
 
 enum LyricChange
@@ -31,6 +32,12 @@ enum LyricSource
     Paxsenix = 32,
     Usual = Lrclib | Deezer | NetEase | QqMusic | Kugou,
     All = Usual | Paxsenix,
+}
+
+enum PointerLyricShape
+{
+    Column,
+    Line,
 }
 
 enum Hover
@@ -74,85 +81,29 @@ static class Settings
     static bool _lyrics = ReadSwitch(nameof(Lyrics)), _lyricEffects = ReadSwitch(nameof(LyricEffects));
     static bool _network = ReadSwitch(nameof(Network)), _hideFullscreen = ReadSwitch(nameof(HideFullscreen));
     static bool _rim = ReadSwitch(nameof(Rim)), _appVolume = ReadSwitch(nameof(AppVolume));
-    static bool _glass = ReadSwitch(nameof(Glass), false);
-    static Hover _hover = (Hover)Math.Clamp(Read(nameof(Hover), 0), 0, (int)Hover.Flow);
     static bool _weather = ReadSwitch(nameof(Weather));
-    static bool _weatherManual = ReadSwitch(nameof(WeatherManual), false);
-    static WeatherPlace? _weatherPlace = ReadWeatherPlace();
-
-    public static bool WeatherManual
-    {
-        get => _weatherManual;
-        set => Write(nameof(WeatherManual), _weatherManual = value);
-    }
-
-    public static WeatherPlace? WeatherPlace
-    {
-        get => _weatherPlace;
-        set
-        {
-            if (value is not { IsValid: true }) return;
-            _weatherPlace = value;
-            Write(nameof(WeatherPlace), System.Text.Json.JsonSerializer.Serialize(value), RegistryValueKind.String);
-        }
-    }
-
-    static WeatherPlace? ReadWeatherPlace()
-    {
-        try
-        {
-            var place = System.Text.Json.JsonSerializer.Deserialize<WeatherPlace>(Read(nameof(WeatherPlace), ""));
-            return place is { IsValid: true } ? place : null;
-        }
-        catch { return null; }
-    }
-
+    static bool _songTitleAutoScroll = ReadSwitch(nameof(SongTitleAutoScroll), true);
+    static bool _pointerLyric = ReadSwitch(nameof(PointerLyric), false);
+    static bool _lyricParting = ReadSwitch(nameof(LyricParting));
+    static PointerLyricShape _pointerLyricShape = (PointerLyricShape)Math.Clamp(Read(nameof(PointerLyricShape), 0), 0, (int)PointerLyricShape.Line);
+    static Place? _place = ReadPlace();
+    static bool _showSeconds = ReadSwitch(nameof(ShowSeconds), false);
+    static bool _rimBeat = ReadSwitch(nameof(RimBeat), false);
+    static int _pulse = Math.Clamp(Read(nameof(Pulse), 2), 0, 3);
+    static string _targetMonitor = Read(nameof(TargetMonitor), "");
+    static AudioCaptureMode _audioCapture = (AudioCaptureMode)Math.Clamp(Read(nameof(AudioCapture), 0), 0, 2);
+    static string[] _audioCaptureProcesses = Read<string[]>(nameof(AudioCaptureProcesses), []);
     static bool _dots = ReadSwitch(nameof(Dots), false);
     static bool _lineBar = ReadSwitch(nameof(LineBar));
+    static bool _glass = ReadSwitch(nameof(Glass), false);
     static Backdrop _backdrop = (Backdrop)Math.Clamp(Read(nameof(Backdrop), 0), 0, (int)Backdrop.GlowAndStars);
     static LyricChange _lyricChange = (LyricChange)Math.Clamp(Read(nameof(LyricChange), (int)LyricChange.Wave), 0, (int)LyricChange.Drum);
     static LyricSource _lyricSources = Known((LyricSource)Read(nameof(LyricSources), (int)LyricSource.Usual));
+    static Hover _hover = (Hover)Math.Clamp(Read(nameof(Hover), 0), 0, (int)Hover.Flow);
     static SeekHover _seekHover = (SeekHover)Math.Clamp(Read(nameof(SeekHover), 0), 0, (int)SeekHover.Wave);
     static int _scale = Math.Clamp(Read(nameof(Scale), DefaultScale), MinScale, MaxScale);
     static int _gap = Math.Clamp(Read(nameof(Gap), DefaultGap), 0, MaxGap);
     static int _accent = Read(nameof(Accent), 0);
-	static bool _showSeconds = ReadSwitch(nameof(ShowSeconds), false);
-	static bool _rimBeat = ReadSwitch(nameof(RimBeat), false);
-	static int _pulse = Math.Clamp(Read(nameof(Pulse), 2), 0, 3);
-	static string _targetMonitor = Read(nameof(TargetMonitor), "");
-
-	public static string TargetMonitor
-    {
-        get => _targetMonitor;
-        set => Write(nameof(TargetMonitor), _targetMonitor = value, RegistryValueKind.String);
-    }
-
-    static AudioCaptureMode _audioCapture = (AudioCaptureMode)Math.Clamp(Read(nameof(AudioCapture), 0), 0, 2);
-    static string[] _audioCaptureProcesses = Read<string[]>(nameof(AudioCaptureProcesses), []);
-
-    public static AudioCaptureMode AudioCapture
-    {
-        get => _audioCapture;
-        set => Write(nameof(AudioCapture), (int)(_audioCapture = value));
-    }
-
-    public static string[] AudioCaptureProcesses
-    {
-        get => (string[])_audioCaptureProcesses.Clone();
-        set => Write(nameof(AudioCaptureProcesses), _audioCaptureProcesses = value.Distinct(StringComparer.OrdinalIgnoreCase).ToArray(), RegistryValueKind.MultiString);
-    }
-
-    public static bool Glass
-    {
-        get => _glass;
-        set => Write(nameof(Glass), _glass = value);
-    }
-
-    public static Hover Hover
-    {
-        get => _hover;
-        set => Write(nameof(Hover), (int)(_hover = value));
-    }
 
     public static bool Dots
     {
@@ -164,6 +115,12 @@ static class Settings
     {
         get => _lineBar;
         set => Write(nameof(LineBar), _lineBar = value);
+    }
+
+    public static bool Glass
+    {
+        get => _glass;
+        set => Write(nameof(Glass), _glass = value);
     }
 
     public static Backdrop Backdrop
@@ -184,6 +141,12 @@ static class Settings
         set => Write(nameof(LyricSources), (int)(_lyricSources = Known(value)));
     }
 
+    public static Hover Hover
+    {
+        get => _hover;
+        set => Write(nameof(Hover), (int)(_hover = value));
+    }
+
     public static SeekHover SeekHover
     {
         get => _seekHover;
@@ -200,6 +163,24 @@ static class Settings
     {
         get => _lyricEffects;
         set => Write(nameof(LyricEffects), _lyricEffects = value);
+    }
+
+    public static bool PointerLyric
+    {
+        get => _pointerLyric;
+        set => Write(nameof(PointerLyric), _pointerLyric = value);
+    }
+
+    public static PointerLyricShape PointerLyricShape
+    {
+        get => _pointerLyricShape;
+        set => Write(nameof(PointerLyricShape), (int)(_pointerLyricShape = value));
+    }
+
+    public static bool LyricParting
+    {
+        get => _lyricParting;
+        set => Write(nameof(LyricParting), _lyricParting = value);
     }
 
     public static bool Rim
@@ -220,10 +201,27 @@ static class Settings
         set => Write(nameof(Network), _network = value);
     }
 
+    public static bool SongTitleAutoScroll
+    {
+        get => _songTitleAutoScroll;
+        set => Write(nameof(SongTitleAutoScroll), _songTitleAutoScroll = value);
+    }
+
     public static bool Weather
     {
         get => _weather;
         set => Write(nameof(Weather), _weather = value);
+    }
+
+    public static Place? Place
+    {
+        get => _place;
+        set
+        {
+            _place = value;
+            string[] stored = value is { } place ? [place.Name, place.Region, Coordinate(place.Latitude), Coordinate(place.Longitude)] : [];
+            Write(nameof(Place), stored, RegistryValueKind.MultiString);
+        }
     }
 
     public static bool HideFullscreen
@@ -255,31 +253,58 @@ static class Settings
         get => Read<string[]>(nameof(Shelf), []);
         set => Write(nameof(Shelf), value, RegistryValueKind.MultiString);
     }
-	
-	public static bool ShowSeconds
+
+    static LyricSource Known(LyricSource sources) => (sources & LyricSource.All) == 0 ? LyricSource.Usual : sources & LyricSource.All;
+
+    static Place? ReadPlace() =>
+        Read<string[]>(nameof(Place), []) is [var name, var region, var latitude, var longitude]
+        && double.TryParse(latitude, NumberStyles.Float, CultureInfo.InvariantCulture, out double lat)
+        && double.TryParse(longitude, NumberStyles.Float, CultureInfo.InvariantCulture, out double lon)
+            ? new Place(name, region, lat, lon) : null;
+
+    static string Coordinate(double degrees) => degrees.ToString("R", CultureInfo.InvariantCulture);
+
+    public static string TargetMonitor
+    {
+        get => _targetMonitor;
+        set => Write(nameof(TargetMonitor), _targetMonitor = value, RegistryValueKind.String);
+    }
+
+    public static AudioCaptureMode AudioCapture
+    {
+        get => _audioCapture;
+        set => Write(nameof(AudioCapture), (int)(_audioCapture = value));
+    }
+
+    public static string[] AudioCaptureProcesses
+    {
+        get => (string[])_audioCaptureProcesses.Clone();
+        set => Write(nameof(AudioCaptureProcesses), _audioCaptureProcesses = value.Distinct(StringComparer.OrdinalIgnoreCase).ToArray(), RegistryValueKind.MultiString);
+    }
+
+    public static bool ShowSeconds
     {
         get => _showSeconds;
         set => Write(nameof(ShowSeconds), _showSeconds = value);
     }
-	
-	public static int SelectedMonitor
+
+    public static int SelectedMonitor
     {
         get => Read(nameof(SelectedMonitor), -1);
         set => Write(nameof(SelectedMonitor), value);
     }
-	
-	public static bool RimBeat
+
+    public static bool RimBeat
     {
         get => _rimBeat;
         set => Write(nameof(RimBeat), _rimBeat = value);
     }
-	public static int Pulse
-	{
+
+    public static int Pulse
+    {
     get => _pulse;
     set => Write(nameof(Pulse), _pulse = Math.Clamp(value, 0, 3));
-	}
-
-    static LyricSource Known(LyricSource sources) => (sources & LyricSource.All) == 0 ? LyricSource.Usual : sources & LyricSource.All;
+    }
 
     static bool ReadSwitch(string name, bool fallback = true) => Read(name, fallback ? 1 : 0) != 0;
 
@@ -300,13 +325,16 @@ static class Settings
 
     static void Write(string name, int value) => Write(name, value, RegistryValueKind.DWord);
 
-	static void Write(string name, object value, RegistryValueKind kind)
+    static void Write(string name, object value, RegistryValueKind kind)
     {
         try
         {
             using RegistryKey key = Registry.CurrentUser.CreateSubKey(Key);
             key.SetValue(name, value, kind);
         }
-        catch (Exception ex) { App.Log(ex); }
+        catch (Exception ex)
+        {
+            App.Log(ex);
+        }
     }
 }

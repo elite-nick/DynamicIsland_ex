@@ -5,16 +5,16 @@
     <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
     <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
     <UseWPF>true</UseWPF>
-	<UseWindowsForms>true</UseWindowsForms>
-	<Version>1.24.0</Version>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Version>1.28.0</Version>
+    <ApplicationIcon>di_logo.ico</ApplicationIcon>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AssemblyName>DynamicIsland</AssemblyName>
     <RootNamespace>DynamicIsland</RootNamespace>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
-	<ApplicationIcon>di_logo.ico</ApplicationIcon>
-	<ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
   </PropertyGroup>
 
   <ItemGroup>
@@ -24,6 +24,7 @@
 
   <ItemGroup>
     <Resource Include="Fonts\*.otf;Fonts\*.ttf" />
+    <Resource Include="Gadgets\*.png" />
   </ItemGroup>
 
   <ItemGroup>

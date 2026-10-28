@@ -37,6 +37,7 @@ public partial class MainWindow
     {
         if (_grab != Grab.None) return;
         _hovered = _pressed = false;
+        StirLyrics();
         UpdateTargets();
         if (_panel != Panel.None) _collapseTimeout.Start(CollapseDelay);
     }
@@ -57,8 +58,9 @@ public partial class MainWindow
 
     void Root_MouseMove(object sender, MouseEventArgs e)
     {
-        if (_grab == Grab.None) return;
         if (FollowMonitorDrag()) return;
+        StirLyrics();
+        if (_grab == Grab.None) return;
         Point at = e.GetPosition(this);
         double now = _clock.Elapsed.TotalSeconds, dt = now - _pointerAt;
         if (dt >= PointerSampleSeconds)
@@ -89,7 +91,6 @@ public partial class MainWindow
         double pulled = _pull, leant = _leanDrag;
         Vector pace = _clock.Elapsed.TotalSeconds - _pointerAt < PointerRestSeconds ? _pointerSpeed / Math.Max(_userScale.Value, MinScale) : default;
         ReleaseGrab();
-
         if (FinishMonitorDrag())
         {
             UpdateTargets();
@@ -222,7 +223,10 @@ public partial class MainWindow
         else if (_view == View.TimerSet) SetMinutes(_setupMinutes + step);
         else if (_view == View.Look && SizeRow.IsMouseOver) SetScale(Settings.Scale + step * ScaleStep);
         else if (_view == View.Look && GapRow.IsMouseOver) SetGap(Settings.Gap + step * GapStep);
+        else if (_view == View.Look && LookOverflow > 0) ScrollLook(-step);
+        else if (_view == View.Settings && SettingsOverflow > 0) ScrollSettings(-step);
         else if (_view == View.Shelf && ShelfOverflow > 0) ScrollShelf(-step);
+        else if (_view == View.Update && UpdateNotesOverflow > 0) ScrollUpdateNotes(-step);
         else if (_view == View.MediaBig && Settings.AppVolume && _audio.AdjustAppVolume(_media.Source, step * WheelVolumeStep, out float level))
             ShowPlayerVolume(level, false, true);
         else if (IsVolumeAtLimit(up)) OvershootVolume(up);

@@ -19,6 +19,7 @@ public partial class MainWindow
     const double IconBlur = 6;
     const string UnknownArtist = "Неизвестный исполнитель";
     static readonly Duration TintTime = Ms(450);
+
 	static readonly string[] Pulses = ["Выкл", "Слабое", "Среднее", "Сильное"]; 
     static readonly double[] PulseShare = [0, 0.4, 0.7, 1];
     const double PulseFrom = 0.5;
@@ -64,6 +65,7 @@ public partial class MainWindow
 
         string artist = string.IsNullOrWhiteSpace(_media.Artist) ? UnknownArtist : _media.Artist;
         TitleBig.Text = ToastTitle.Text = title;
+        RefreshSongTitleScroll();
         ArtistBig.Text = ToastArtist.Text = _sourceName.Length > 0 ? _sourceName + " · " + artist : artist;
 
         if (!ReferenceEquals(_cover, _media.Art))
@@ -81,11 +83,11 @@ public partial class MainWindow
         }
         if (_media.IsPlaying || turned) _lastPlayedAt = DateTime.UtcNow;
 
-        if (turned || (newTrack && _media.IsPlaying)) ShowTransient(View.Toast, ToastSeconds);
+        if (turned || (newTrack && _media.IsPlaying)) ShowTransient(View.Toast, ToastTitleDisplaySeconds());
         TrackLyrics();
         UpdateView();
         UpdateLyric();
-		SwitchSourceButton.Visibility = _media.SessionCount > 1 ? Visibility.Visible : Visibility.Collapsed;
+        SwitchSourceButton.Visibility = _media.SessionCount > 1 ? Visibility.Visible : Visibility.Collapsed;
     }
 
     static void SwapIcons(FrameworkElement leave, FrameworkElement enter, bool animate)
@@ -151,7 +153,7 @@ public partial class MainWindow
         foreach (RadioButton tile in BackdropStrip.Children) ((BackdropPreview)tile.Content).Tint(palette);
     }
 
-	void SyncBackdrop()
+    void SyncBackdrop()
     {
         Backdrop backdrop = Settings.Backdrop;
         Glow.SetVisible(backdrop == Backdrop.Glow || backdrop == Backdrop.GlowAndStars);
@@ -167,7 +169,7 @@ public partial class MainWindow
         if (IsEqVisible || preview) _eqLoop.Start();
     }
 
-	bool AdvanceEq(double dt)
+    bool AdvanceEq(double dt)
     {
         if (_view == View.Capture)
         {
@@ -211,7 +213,7 @@ public partial class MainWindow
         return IsEqVisible && (playing || moving);
     }
 
-	bool AdvanceBackdrop(float[]? bands, bool playing, double now, double dt)
+    bool AdvanceBackdrop(float[]? bands, bool playing, double now, double dt)
     {
         _backdropLevels.Follow(bands, Eq, playing, dt);
         Backdrop backdrop = Settings.Backdrop;
@@ -275,8 +277,8 @@ public partial class MainWindow
         NextIcon.Play();
         _media.Next();
     }
-	
-	void SwitchSource_Click(object sender, RoutedEventArgs e)
+
+void SwitchSource_Click(object sender, RoutedEventArgs e)
     {
         SwitchSource(1);
     }

@@ -24,7 +24,17 @@ public partial class MainWindow
 
     static bool IsHidden(FrameworkElement view) => view.Visibility != Visibility.Visible || view.Opacity < BarelyVisible;
 
-    static UIElementCollection? RowsOf(FrameworkElement view) => view is Grid { Children: [StackPanel list] } ? list.Children : null;
+    static UIElementCollection? RowsOf(FrameworkElement view)
+    {
+        if (view is not Grid grid || grid.Children.Count != 1) return null;
+        return grid.Children[0] switch
+        {
+            StackPanel rows => rows.Children,
+            ScrollViewer { Content: StackPanel rows } => rows.Children,
+            Border { Child: Canvas canvas } when canvas.Children.Count == 1 && canvas.Children[0] is RowList rows => rows.Children,
+            _ => null,
+        };
+    }
 
     bool IsCurrent(FrameworkElement view) => view == Shared ? MediaSpots.ContainsKey(_view) : _views[_view] == view;
 
@@ -71,11 +81,27 @@ public partial class MainWindow
         view.BeginAnimation(OpacityProperty, new DoubleAnimation(1, Ms(100)));
         foreach (UIElement row in rows)
         {
-            if (row.RenderTransform is not TranslateTransform move) row.RenderTransform = move = new TranslateTransform();
+            TranslateTransform move = RowSlideOffset(row);
             move.BeginAnimation(TranslateTransform.XProperty, Delayed(direction * PageSlideDistance, 0, wait, run, ease));
             row.BeginAnimation(OpacityProperty, Delayed(0, 1, wait, show));
             wait += RowStagger;
         }
+    }
+
+    static TranslateTransform RowSlideOffset(UIElement row)
+    {
+        if (row.RenderTransform is TranslateTransform move) return move;
+        if (row.RenderTransform is TransformGroup transforms)
+        {
+            foreach (Transform transform in transforms.Children)
+                if (transform is TranslateTransform slide) return slide;
+            var createdSlide = new TranslateTransform();
+            transforms.Children.Add(createdSlide);
+            return createdSlide;
+        }
+        var offset = new TranslateTransform();
+        row.RenderTransform = offset;
+        return offset;
     }
 
     void FadeOut(FrameworkElement view)

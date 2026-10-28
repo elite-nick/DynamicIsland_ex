@@ -137,6 +137,9 @@ public partial class MainWindow
         if (_morphing) FitViews(w, h);
         ApplyMotionBlur();
         ApplyShelfScroll();
+        ApplyLookScroll();
+        ApplySettingsScroll();
+        ApplyUpdateNotesScroll();
         StretchVolumeBar();
 
         IslandScale.ScaleX = IslandScale.ScaleY = scale;
