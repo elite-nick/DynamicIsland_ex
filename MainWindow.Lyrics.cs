@@ -42,6 +42,7 @@ public partial class MainWindow
     LyricsService.Line[] _lyricLines = [];
     int _lyricIndex = -1;
     string _lyricTitle = "";
+    string _lyricSource = "";
     bool _lyricShowsTitle;
     bool _lyricTitleAutoScroll;
     double _compactMediaWidth = CompactMediaWidth;
@@ -89,33 +90,41 @@ public partial class MainWindow
         int index = LineAt(lines, at);
 
         string title = _media.HasTrack ? _media.Name : "";
+        string source = _media.Source;
+        bool sourceChanged = source != _lyricSource;
         string text = index < 0 ? "" : lines[index].Text;
         TimeSpan end = index + 1 < lines.Length ? lines[index + 1].Time : _media.Duration;
         double seconds = (end - at).TotalSeconds;
         bool named = text.Length == 0 && (index < 0 || seconds >= LyricGapSeconds);
-        if (ReferenceEquals(lines, _lyricLines) && index == _lyricIndex
+        if (!sourceChanged && ReferenceEquals(lines, _lyricLines) && index == _lyricIndex
             && (!named || (title == _lyricTitle && _lyricTitleAutoScroll == Settings.SongTitleAutoScroll))) return;
 
         _lyricLines = lines;
         _lyricIndex = index;
         _lyricTitle = title;
-        ShowLyric(named ? title : text, seconds, snap, named);
+        _lyricSource = source;
+        ShowLyric(named ? title : text, seconds, snap, named, sourceChanged);
     }
 
-    void ShowLyric(string text, double seconds, bool snap, bool named)
+    void ShowLyric(string text, double seconds, bool snap, bool named, bool sourceChanged = false)
     {
         CompactLyric old = _lyricBlock;
         bool scrollTitle = named && Settings.SongTitleAutoScroll;
-        if (text == old.Text && (text.Length == 0
+        if (!sourceChanged && text == old.Text && (text.Length == 0
             || (named && _lyricShowsTitle && _lyricTitleAutoScroll == scrollTitle))) return;
         CompactLyric next = _lyricBlock = old == LyricA ? LyricB : LyricA;
+
+        if (sourceChanged || (_lyricShowsTitle && _lyricTitleAutoScroll))
+        {
+            old.Offset.BeginAnimation(TranslateTransform.XProperty, null);
+            if (sourceChanged) old.Offset.X = 0;
+        }
+        old.Leave(snap || sourceChanged);
+        next.Offset.BeginAnimation(TranslateTransform.XProperty, null);
+        next.Offset.X = 0;
+
         _lyricShowsTitle = named;
         _lyricTitleAutoScroll = scrollTitle;
-
-        old.Leave(snap);
-        // CompactLyric.Fit() used to replace overflowing song titles with an
-        // ellipsis before scrolling could see the rest. Keep that legacy
-        // behavior only when automatic title scrolling is switched off.
         next.Show(text, named ? _dim : Brushes.White,
             named && !scrollTitle ? TrackNameWidth - LyricInset - 2 * LyricFadeEdge : double.PositiveInfinity,
             Settings.LyricChange);
@@ -131,13 +140,16 @@ public partial class MainWindow
         CentreLyrics();
         double box = _compactMediaWidth - LyricInset;
         double overflow = width - (box - 2 * LyricFadeEdge);
+        bool needsScroll = overflow > (named ? TitleScrollTolerance : 0)
+            && (!named || scrollTitle);
         if (!snap) _width.Tune(280, 30);
         UpdateTargets();
 
-        next.Offset.X = overflow > 0 ? LyricFadeEdge : (box - width) / 2;
-        next.Offset.BeginAnimation(TranslateTransform.XProperty, overflow > 0
-            ? scrollTitle ? CreateTitleScroll(overflow, LyricFadeEdge) : CreateLyricScroll(overflow, seconds)
-            : null);
+        next.Offset.X = needsScroll ? LyricFadeEdge : (box - width) / 2;
+        if (needsScroll)
+            next.Offset.BeginAnimation(TranslateTransform.XProperty, scrollTitle
+                ? CreateTitleScroll(overflow, LyricFadeEdge)
+                : CreateLyricScroll(overflow, seconds));
         next.Enter();
         StirLyrics();
     }
